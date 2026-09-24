@@ -1,0 +1,23 @@
+[package]
+name = "sqlite-fs-meta"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "fs_meta"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+sqlite-loadable = "0.0.6-alpha.6"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+walkdir = "2.5"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+
+[target.'cfg(unix)'.dependencies]
+xattr = "1.4"
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3.17"
