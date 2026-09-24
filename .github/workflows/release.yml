@@ -22,7 +22,7 @@ jobs:
             binary_name: libfs_meta.dylib
             raw_output: libfs_meta-aarch64-apple-darwin.dylib
             archive_ext: tar.gz
-          - os: macos-13
+          - os: macos-14
             target: x86_64-apple-darwin
             binary_name: libfs_meta.dylib
             raw_output: libfs_meta-x86_64-apple-darwin.dylib
@@ -72,7 +72,13 @@ jobs:
           archive_base="fs_meta-${tag}-${{ matrix.target }}"
 
           if [[ "${{ matrix.archive_ext }}" == "zip" ]]; then
-            (cd staging && zip -r "../dist/${archive_base}.zip" .)
+            if command -v 7z >/dev/null 2>&1; then
+              (cd staging && 7z a "../dist/${archive_base}.zip" .)
+            elif command -v zip >/dev/null 2>&1; then
+              (cd staging && zip -r "../dist/${archive_base}.zip" .)
+            else
+              tar -czf "dist/${archive_base}.tar.gz" -C staging .
+            fi
           else
             tar -czf "dist/${archive_base}.tar.gz" -C staging .
           fi
