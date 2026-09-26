@@ -2,12 +2,13 @@ use crate::fs_scanner::{lookup_file, scan_directory, FileInfo};
 use crate::meta::{clear_metadata, read_metadata, write_metadata};
 use crate::schema::VTabConfig;
 
+use sha2::{Digest, Sha256};
 use sqlite_loadable::api::{
     result_double, result_int, result_int64, result_null, result_text, value_bytes, value_double,
     value_int64, value_text, value_type, ValueType,
 };
 use sqlite_loadable::ext::*;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
 use std::slice;
@@ -15,14 +16,127 @@ use std::slice;
 pub const SQLITE_OK: c_int = 0;
 pub const SQLITE_ERROR: c_int = 1;
 
-pub const SYSTEM_COLUMNS_COUNT: usize = 7;
-pub const COL_ID: usize = 0;
-pub const COL_NAME: usize = 1;
-pub const COL_PATH: usize = 2;
-pub const COL_SIZE: usize = 3;
-pub const COL_MTIME: usize = 4;
-pub const COL_EXTENSION: usize = 5;
-pub const COL_IS_DIR: usize = 6;
+pub const SYSTEM_COLUMNS_COUNT: usize = 13;
+pub const COL__ID: usize = 0;
+pub const COL_ID: usize = 1;
+pub const COL_NAME: usize = 2;
+pub const COL_EXTENSION: usize = 3;
+pub const COL_SIZE: usize = 4;
+pub const COL__CREATED_AT: usize = 5;
+pub const COL__UPDATED_AT: usize = 6;
+pub const COL_MTIME: usize = 7;
+pub const COL_PATH: usize = 8;
+pub const COL_IS_DIR: usize = 9;
+pub const COL_FILE: usize = 10;
+pub const COL_MIMETYPE: usize = 11;
+pub const COL_MIME_TYPE: usize = 12;
+
+pub fn deterministic_uuid_v7(path: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(path.as_bytes());
+    let result = hasher.finalize();
+
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&result[0..16]);
+
+    // Set version to 7 (0b0111_xxxx in high nibble of byte 6)
+    bytes[6] = (bytes[6] & 0x0f) | 0x70;
+    // Set variant to RFC 4122 (0b10xx_xxxx in byte 8)
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+    format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        bytes[0], bytes[1], bytes[2], bytes[3],
+        bytes[4], bytes[5],
+        bytes[6], bytes[7],
+        bytes[8], bytes[9],
+        bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15],
+    )
+}
+
+pub fn guess_media_type(ext: &str) -> &'static str {
+    match ext {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        "avif" => "image/avif",
+        "ico" => "image/x-icon",
+        "svg" => "image/svg+xml",
+        "tiff" | "tif" => "image/tiff",
+        "heic" => "image/heic",
+        "heif" => "image/heif",
+        "pdf" => "application/pdf",
+        "zip" => "application/zip",
+        "tar" => "application/x-tar",
+        "gz" | "gzip" => "application/gzip",
+        "7z" => "application/x-7z-compressed",
+        "rar" => "application/vnd.rar",
+        "csv" => "text/csv",
+        "tsv" => "text/tab-separated-values",
+        "json" => "application/json",
+        "xml" => "application/xml",
+        "yaml" | "yml" => "text/yaml",
+        "md" | "markdown" => "text/markdown",
+        "txt" => "text/plain",
+        "html" | "htm" => "text/html",
+        "css" => "text/css",
+        "js" | "mjs" | "cjs" => "text/javascript",
+        "ts" | "mts" | "cts" => "text/typescript",
+        "tsx" | "jsx" => "text/javascript",
+        "doc" => "application/msword",
+        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "xls" => "application/vnd.ms-excel",
+        "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "ppt" => "application/vnd.ms-powerpoint",
+        "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "ogg" => "audio/ogg",
+        "flac" => "audio/flac",
+        "m4a" => "audio/mp4",
+        "aac" => "audio/aac",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "mov" => "video/quicktime",
+        "mkv" => "video/x-matroska",
+        "avi" => "video/x-msvideo",
+        _ => "application/octet-stream",
+    }
+}
+
+pub fn encode_uri_path(path: &str) -> String {
+    let mut encoded = String::with_capacity(path.len());
+    for b in path.bytes() {
+        match b {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' | b'/' => {
+                encoded.push(b as char);
+            }
+            _ => {
+                use std::fmt::Write;
+                let _ = write!(encoded, "%{:02X}", b);
+            }
+        }
+    }
+    encoded
+}
+
+pub fn format_file_entry(rel_path: &str, filename: &str, ext: &str, size: u64) -> String {
+    let id = deterministic_uuid_v7(rel_path);
+    let media_type = guess_media_type(ext);
+    let size_str = size.to_string();
+    let uri = encode_uri_path(rel_path);
+
+    let mut entry = BTreeMap::new();
+    entry.insert("id", id.as_str());
+    entry.insert("mediaType", media_type);
+    entry.insert("name", filename);
+    entry.insert("size", size_str.as_str());
+    entry.insert("uri", uri.as_str());
+
+    serde_json::to_string(&vec![entry]).unwrap_or_else(|_| "[]".to_string())
+}
 
 #[repr(C)]
 pub struct FsMetaVTab {
@@ -114,10 +228,15 @@ unsafe extern "C" fn vtab_best_index(
     let constraints = slice::from_raw_parts(info.aConstraint, n_constraints);
     let usages = slice::from_raw_parts_mut(info.aConstraintUsage, n_constraints);
 
-    // Look for equality constraint on id (col 0) or path (col 2)
+    // Look for equality constraint on _id (col 0), id (col 1), or path (col 8)
     let mut point_lookup_idx = None;
     for (i, c) in constraints.iter().enumerate() {
-        if c.usable != 0 && (c.iColumn == COL_ID as i32 || c.iColumn == COL_PATH as i32) && c.op == 2 {
+        if c.usable != 0
+            && (c.iColumn == COL__ID as i32
+                || c.iColumn == COL_ID as i32
+                || c.iColumn == COL_PATH as i32)
+            && c.op == 2
+        {
             // op 2 is SQLITE_INDEX_CONSTRAINT_EQ
             point_lookup_idx = Some(i);
             break;
@@ -226,26 +345,40 @@ unsafe extern "C" fn vtab_column(
     let col = i_col as usize;
 
     match col {
-        COL_ID => {
+        COL__ID | COL_ID | COL_PATH => {
             let _ = result_text(ctx, &file.rel_path);
         }
         COL_NAME => {
             let _ = result_text(ctx, &file.filename);
         }
-        COL_PATH => {
-            let _ = result_text(ctx, &file.rel_path);
+        COL_EXTENSION => {
+            let _ = result_text(ctx, &file.extension);
         }
         COL_SIZE => {
             result_int64(ctx, file.size as i64);
         }
-        COL_MTIME => {
+        COL__CREATED_AT | COL__UPDATED_AT | COL_MTIME => {
             let _ = result_text(ctx, &file.mtime_iso);
-        }
-        COL_EXTENSION => {
-            let _ = result_text(ctx, &file.extension);
         }
         COL_IS_DIR => {
             result_int(ctx, if file.is_dir { 1 } else { 0 });
+        }
+        COL_FILE => {
+            if file.is_dir {
+                result_null(ctx);
+            } else {
+                let entry =
+                    format_file_entry(&file.rel_path, &file.filename, &file.extension, file.size);
+                let _ = result_text(ctx, &entry);
+            }
+        }
+        COL_MIMETYPE | COL_MIME_TYPE => {
+            if file.is_dir {
+                result_null(ctx);
+            } else {
+                let media_type = guess_media_type(&file.extension);
+                let _ = result_text(ctx, media_type);
+            }
         }
         _ => {
             // User-defined custom metadata column
@@ -293,10 +426,7 @@ unsafe extern "C" fn vtab_column(
     SQLITE_OK as c_int
 }
 
-unsafe extern "C" fn vtab_rowid(
-    p_cursor: *mut sqlite3_vtab_cursor,
-    p_rowid: *mut i64,
-) -> c_int {
+unsafe extern "C" fn vtab_rowid(p_cursor: *mut sqlite3_vtab_cursor, p_rowid: *mut i64) -> c_int {
     let cursor = &*(p_cursor as *mut FsMetaCursor);
     *p_rowid = (cursor.current_idx + 1) as i64;
     SQLITE_OK as c_int
@@ -433,6 +563,11 @@ static FS_META_MODULE: sqlite3_module = sqlite3_module {
     xShadowName: None,
 };
 
+/// Registers the fs_meta module with SQLite.
+///
+/// # Safety
+///
+/// `db` must be a valid, open SQLite database connection pointer.
 pub unsafe fn register_fs_meta_module(db: *mut sqlite3) -> c_int {
     let mod_name = CString::new("fs_meta").unwrap_or_default();
     sqlite3ext_create_module_v2(
@@ -442,4 +577,64 @@ pub unsafe fn register_fs_meta_module(db: *mut sqlite3) -> c_int {
         std::ptr::null_mut(),
         None,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_uuid_v7_format() {
+        let uuid = deterministic_uuid_v7("sub/test-image.png");
+        assert_eq!(uuid.len(), 36);
+        let chars: Vec<char> = uuid.chars().collect();
+        assert_eq!(chars[8], '-');
+        assert_eq!(chars[13], '-');
+        assert_eq!(chars[14], '7'); // version 7
+        assert_eq!(chars[18], '-');
+        assert!(matches!(chars[19], '8' | '9' | 'a' | 'b')); // variant RFC 4122
+        assert_eq!(chars[23], '-');
+
+        // Deterministic check
+        let uuid2 = deterministic_uuid_v7("sub/test-image.png");
+        assert_eq!(uuid, uuid2);
+
+        // Different path yields different UUID
+        let uuid3 = deterministic_uuid_v7("sub/other.png");
+        assert_ne!(uuid, uuid3);
+    }
+
+    #[test]
+    fn test_format_file_entry_canonical_json() {
+        let json_str = format_file_entry("photos/cat.png", "cat.png", "png", 1024);
+        assert!(json_str.starts_with(r#"[{"id":""#));
+        assert!(json_str.contains(r#""mediaType":"image/png""#));
+        assert!(json_str.contains(r#""name":"cat.png""#));
+        assert!(json_str.contains(r#""size":"1024""#));
+        assert!(json_str.contains(r#""uri":"photos/cat.png""#));
+        assert!(json_str.ends_with("}]"));
+
+        // Ensure keys are in exact alphabetical order: id, mediaType, name, size, uri
+        let id_idx = json_str.find(r#""id""#).unwrap();
+        let mt_idx = json_str.find(r#""mediaType""#).unwrap();
+        let name_idx = json_str.find(r#""name""#).unwrap();
+        let size_idx = json_str.find(r#""size""#).unwrap();
+        let uri_idx = json_str.find(r#""uri""#).unwrap();
+
+        assert!(id_idx < mt_idx);
+        assert!(mt_idx < name_idx);
+        assert!(name_idx < size_idx);
+        assert!(size_idx < uri_idx);
+    }
+
+    #[test]
+    fn test_encode_uri_path_unicode_and_spaces() {
+        let uri = encode_uri_path("photos/my photo 2026.png");
+        assert_eq!(uri, "photos/my%20photo%202026.png");
+
+        let uri_unicode = encode_uri_path("文档/封面.png");
+        assert!(uri_unicode.starts_with("%"));
+        assert!(uri_unicode.contains("/"));
+        assert!(uri_unicode.ends_with(".png"));
+    }
 }

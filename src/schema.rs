@@ -105,19 +105,29 @@ impl VTabConfig {
     /// Generates the SQL CREATE TABLE statement required by sqlite3_declare_vtab.
     pub fn to_declare_sql(&self, table_name: &str) -> String {
         let mut cols = vec![
-            "\"id\" TEXT PRIMARY KEY".to_string(),
+            "\"_id\" TEXT PRIMARY KEY".to_string(),
+            "\"id\" TEXT".to_string(),
             "\"name\" TEXT".to_string(),
-            "\"path\" TEXT".to_string(),
-            "\"size\" INTEGER".to_string(),
-            "\"mtime\" TEXT".to_string(),
             "\"extension\" TEXT".to_string(),
+            "\"size\" INTEGER".to_string(),
+            "\"_created_at\" TEXT".to_string(),
+            "\"_updated_at\" TEXT".to_string(),
+            "\"mtime\" TEXT".to_string(),
+            "\"path\" TEXT".to_string(),
             "\"is_dir\" INTEGER".to_string(),
+            "\"file\" TEXT".to_string(),
+            "\"mimetype\" TEXT".to_string(),
+            "\"mime_type\" TEXT".to_string(),
         ];
 
         for col in &self.custom_columns {
             cols.push(format!("\"{}\" {}", col.name, col.data_type));
         }
 
-        format!("CREATE TABLE \"{}\" (\n  {}\n) WITHOUT ROWID;", table_name, cols.join(",\n  "))
+        format!(
+            "CREATE TABLE \"{}\" (\n  {}\n) WITHOUT ROWID;",
+            table_name,
+            cols.join(",\n  ")
+        )
     }
 }

@@ -2,7 +2,10 @@ use std::collections::HashMap;
 use std::path::Path;
 
 /// Reads the metadata envelope (key-value JSON) from the specified file.
-pub fn read_metadata(path: &Path, namespace: &str) -> std::io::Result<HashMap<String, serde_json::Value>> {
+pub fn read_metadata(
+    path: &Path,
+    namespace: &str,
+) -> std::io::Result<HashMap<String, serde_json::Value>> {
     #[cfg(unix)]
     {
         match xattr::get(path, namespace)? {

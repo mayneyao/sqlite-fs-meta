@@ -11,8 +11,10 @@ use sqlite_loadable::{Error, Result};
 fn init_fs_meta(db: *mut sqlite3) -> Result<()> {
     unsafe {
         let rc = vtab::register_fs_meta_module(db);
-        if rc != SQLITE_OK as i32 {
-            return Err(Error::new_message("Failed to register fs_meta virtual table"));
+        if rc != SQLITE_OK {
+            return Err(Error::new_message(
+                "Failed to register fs_meta virtual table",
+            ));
         }
     }
     Ok(())

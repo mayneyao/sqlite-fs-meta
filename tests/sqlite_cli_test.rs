@@ -8,13 +8,11 @@ fn test_sqlite_fs_meta_e2e() {
         .unwrap()
         .join("target/debug/libfs_meta");
 
-    if !dylib_path.with_extension("dylib").exists() {
-        let status = Command::new("cargo")
-            .arg("build")
-            .status()
-            .expect("Failed to build cdylib for test");
-        assert!(status.success());
-    }
+    let status = Command::new("cargo")
+        .arg("build")
+        .status()
+        .expect("Failed to build cdylib for test");
+    assert!(status.success());
 
     let temp = tempdir().unwrap();
     let root = temp.path();
@@ -33,13 +31,16 @@ CREATE VIRTUAL TABLE files USING fs_meta(
 );
 
 -- Test SELECT
-SELECT id, name, extension, tags FROM files ORDER BY id;
+SELECT id, name, extension, mimetype, mime_type, tags, file FROM files ORDER BY id;
+
+-- Test filtering by mimetype
+SELECT id, mimetype FROM files WHERE mimetype LIKE 'image/%';
 
 -- Test UPDATE
 UPDATE files SET tags = '["review", "p0"]', rating = 5, status = 'Done' WHERE id = 'doc1.pdf';
 
 -- Test SELECT after UPDATE
-SELECT id, tags, rating, status FROM files WHERE id = 'doc1.pdf';
+SELECT id, mimetype, tags, rating, status, file FROM files WHERE id = 'doc1.pdf';
 
 -- Test DELETE (clearing metadata)
 DELETE FROM files WHERE id = 'doc1.pdf';
@@ -73,7 +74,14 @@ SELECT id, tags, rating FROM files WHERE id = 'doc1.pdf';
 
     println!("STDOUT:\n{}", stdout);
 
-    assert!(stdout.contains("doc1.pdf|doc1.pdf|pdf|"));
-    assert!(stdout.contains("sub/image.png|image.png|png|"));
-    assert!(stdout.contains("doc1.pdf|[\"review\",\"p0\"]|5|Done"));
+    assert!(stdout.contains("doc1.pdf|doc1.pdf|pdf|application/pdf|application/pdf|"));
+    assert!(stdout.contains("sub/image.png|image.png|png|image/png|image/png|"));
+    assert!(stdout.contains("sub/image.png|image/png"));
+    assert!(stdout.contains("doc1.pdf|application/pdf|[\"review\",\"p0\"]|5|Done"));
+    assert!(stdout.contains(
+        r#""mediaType":"application/pdf","name":"doc1.pdf","size":"18","uri":"doc1.pdf""#
+    ));
+    assert!(stdout.contains(
+        r#""mediaType":"image/png","name":"image.png","size":"18","uri":"sub/image.png""#
+    ));
 }

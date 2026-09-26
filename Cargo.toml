@@ -1,6 +1,6 @@
 [package]
 name = "sqlite-fs-meta"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [lib]
@@ -14,6 +14,7 @@ serde_json = "1.0"
 thiserror = "2.0"
 walkdir = "2.5"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+sha2 = "0.10"
 
 [target.'cfg(unix)'.dependencies]
 xattr = "1.4"
