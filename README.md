@@ -85,11 +85,15 @@ CREATE VIRTUAL TABLE my_files USING fs_meta(
 
 | Parameter | Default | Description |
 | :--- | :--- | :--- |
-| `root` | *(Required)* | Absolute or relative root directory to manage |
+| `root` | *(Required)* | Absolute root, or a path relative to the owning database file (including attached databases). In-memory/temporary databases resolve relative roots against the working directory. |
 | `fields` | `""` | Comma-separated custom columns (`col_name TYPE, ...`) |
 | `namespace` | `"space.eidos.meta"` | The attribute name used for xattr or ADS |
 | `ignore` | `node_modules,target,.git,.graft` | Additional comma-separated directory/file ignore names |
 | `on_delete` | `"clear_meta"` | `"clear_meta"` (default) to clear metadata on `DELETE`; `"delete_file"` to remove the physical file |
+
+Use `root='.'` to keep a file-backed index portable when its folder moves. SQL
+string arguments decode doubled quotes: `root='O''Brien'` addresses `O'Brien`.
+`SELECT fs_meta_root_mode()` returns `database` to identify this behavior.
 
 ---
 

@@ -1,5 +1,26 @@
 use std::path::PathBuf;
 
+fn decode_argument(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    match value.chars().next() {
+        Some(quote @ ('\'' | '"')) => {
+            if value.len() < 2 || !value.ends_with(quote) {
+                return Err("Unterminated fs_meta argument".into());
+            }
+            let mut chars = value[1..value.len() - 1].chars().peekable();
+            let mut decoded = String::new();
+            while let Some(ch) = chars.next() {
+                if ch == quote && chars.next() != Some(quote) {
+                    return Err("Invalid quote in fs_meta argument".into());
+                }
+                decoded.push(ch);
+            }
+            Ok(decoded)
+        }
+        _ => Ok(value.to_string()),
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ColumnDef {
     pub name: String,
@@ -36,11 +57,11 @@ impl VTabConfig {
 
             if let Some((key, val)) = trimmed.split_once('=') {
                 let key = key.trim().to_lowercase();
-                let val = val.trim().trim_matches('\'').trim_matches('"');
+                let val = decode_argument(val)?;
 
                 match key.as_str() {
                     "root" => {
-                        root = Some(PathBuf::from(val));
+                        root = Some(PathBuf::from(&val));
                     }
                     "namespace" => {
                         namespace = val.to_string();
@@ -84,8 +105,8 @@ impl VTabConfig {
                 }
             } else {
                 // If it's a positional argument or just root path
-                if root.is_none() && !trimmed.contains(' ') {
-                    let cleaned = trimmed.trim_matches('\'').trim_matches('"');
+                if root.is_none() {
+                    let cleaned = decode_argument(trimmed)?;
                     root = Some(PathBuf::from(cleaned));
                 }
             }
@@ -121,13 +142,34 @@ impl VTabConfig {
         ];
 
         for col in &self.custom_columns {
-            cols.push(format!("\"{}\" {}", col.name, col.data_type));
+            cols.push(format!(
+                "\"{}\" {}",
+                col.name.replace('"', "\"\""),
+                col.data_type
+            ));
         }
 
         format!(
             "CREATE TABLE \"{}\" (\n  {}\n) WITHOUT ROWID;",
-            table_name,
+            table_name.replace('"', "\"\""),
             cols.join(",\n  ")
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decodes_sql_quotes_without_trimming_path_characters() {
+        assert_eq!(
+            decode_argument("'O''Brien/notes'").unwrap(),
+            "O'Brien/notes"
+        );
+        assert_eq!(decode_argument("'folder\"'").unwrap(), "folder\"");
+        assert_eq!(decode_argument("\"a\"\"b\"").unwrap(), "a\"b");
+        assert!(decode_argument("'a'b'").is_err());
+        assert!(decode_argument("'open").is_err());
     }
 }

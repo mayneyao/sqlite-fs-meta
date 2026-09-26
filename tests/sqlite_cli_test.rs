@@ -3,6 +3,50 @@ use std::process::Command;
 use tempfile::tempdir;
 
 #[test]
+fn relative_roots_follow_database_moves_and_decode_quoted_paths() {
+    assert!(Command::new("cargo")
+        .args(["build", "--locked"])
+        .status()
+        .unwrap()
+        .success());
+    let library = std::env::current_dir()
+        .unwrap()
+        .join("target/debug/libfs_meta");
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("O'Brien \"notes\"");
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("proof.txt"), "proof").unwrap();
+    let run = |db: &std::path::Path, sql: &str| {
+        let output =
+            Command::new(std::env::var("SQLITE3_BIN").unwrap_or_else(|_| "sqlite3".into()))
+                .current_dir(temp.path())
+                .arg("-bail")
+                .arg("-cmd")
+                .arg(format!(".load {}", library.display()))
+                .arg(db)
+                .arg(sql)
+                .output()
+                .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    let file = root.join("files.sqlite");
+    assert_eq!(run(&file, "CREATE VIRTUAL TABLE files USING fs_meta(root='.', fields='rating INTEGER'); SELECT count(*) FROM files WHERE name='proof.txt';"), "1");
+    let absolute_root = root.to_str().unwrap().replace('\'', "''");
+    assert_eq!(run(std::path::Path::new(":memory:"), &format!("CREATE VIRTUAL TABLE files USING fs_meta(root='{absolute_root}'); SELECT count(*) FROM files WHERE name='proof.txt';")), "1");
+    let moved = temp.path().join("moved");
+    fs::rename(&root, &moved).unwrap();
+    let file = moved.join("files.sqlite");
+    assert_eq!(run(&file, "UPDATE files SET rating=7 WHERE name='proof.txt'; SELECT rating FROM files WHERE name='proof.txt';"), "7");
+    let attached = file.to_str().unwrap().replace('\'', "''");
+    assert_eq!(run(std::path::Path::new(":memory:"), &format!("ATTACH '{attached}' AS other; SELECT rating FROM other.files WHERE name='proof.txt';")), "7");
+}
+
+#[test]
 fn test_sqlite_fs_meta_e2e() {
     let dylib_path = std::env::current_dir()
         .unwrap()
@@ -50,31 +94,32 @@ SELECT id, tags, rating FROM files WHERE id = 'doc1.pdf';
         root = root.display()
     );
 
-    let output = match Command::new("sqlite3")
-        .arg(":memory:")
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-    {
-        Ok(mut child) => {
-            use std::io::Write;
-            if let Some(mut stdin) = child.stdin.take() {
-                let _ = stdin.write_all(sql.as_bytes());
-            }
-            match child.wait_with_output() {
-                Ok(out) => out,
-                Err(err) => {
-                    eprintln!("Failed to wait for sqlite3: {}, skipping", err);
-                    return;
+    let output =
+        match Command::new(std::env::var("SQLITE3_BIN").unwrap_or_else(|_| "sqlite3".into()))
+            .arg(":memory:")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+        {
+            Ok(mut child) => {
+                use std::io::Write;
+                if let Some(mut stdin) = child.stdin.take() {
+                    let _ = stdin.write_all(sql.as_bytes());
+                }
+                match child.wait_with_output() {
+                    Ok(out) => out,
+                    Err(err) => {
+                        eprintln!("Failed to wait for sqlite3: {}, skipping", err);
+                        return;
+                    }
                 }
             }
-        }
-        Err(err) => {
-            eprintln!("sqlite3 CLI not available ({}), skipping", err);
-            return;
-        }
-    };
+            Err(err) => {
+                eprintln!("sqlite3 CLI not available ({}), skipping", err);
+                return;
+            }
+        };
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);

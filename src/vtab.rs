@@ -11,7 +11,49 @@ use sqlite_loadable::ext::*;
 use std::collections::{BTreeMap, HashMap};
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
+use std::path::PathBuf;
 use std::slice;
+
+// database_list also handles attached databases: argv[1] names the schema that
+// owns this virtual table, which need not be main.
+unsafe fn database_directory(db: *mut sqlite3, schema: &str) -> Result<Option<PathBuf>, String> {
+    let sql = CString::new("PRAGMA database_list").unwrap();
+    let mut statement = std::ptr::null_mut();
+    if sqlite3ext_prepare_v2(db, sql.as_ptr(), -1, &mut statement, std::ptr::null_mut())
+        != SQLITE_OK
+    {
+        return Err("Could not resolve fs_meta database directory".into());
+    }
+    let mut directory = None;
+    let result = loop {
+        let rc = sqlite3ext_step(statement);
+        if rc == 101 {
+            break Ok(directory);
+        }
+        if rc != 100 {
+            break Err("Could not read fs_meta database directory".into());
+        }
+        let name = sqlite3ext_column_text(statement, 1);
+        let file = sqlite3ext_column_text(statement, 2);
+        if !name.is_null()
+            && !file.is_null()
+            && CStr::from_ptr(name.cast()).to_bytes() == schema.as_bytes()
+        {
+            let file = CStr::from_ptr(file.cast())
+                .to_str()
+                .map_err(|_| "Database path is not UTF-8");
+            match file {
+                Ok(file) if !file.is_empty() => {
+                    directory = PathBuf::from(file).parent().map(|p| p.to_path_buf())
+                }
+                Ok(_) => {}
+                Err(error) => break Err(error.into()),
+            }
+        }
+    };
+    sqlite3ext_finalize(statement);
+    result
+}
 
 pub const SQLITE_OK: c_int = 0;
 pub const SQLITE_ERROR: c_int = 1;
@@ -179,7 +221,14 @@ unsafe extern "C" fn vtab_connect(
     let table_name = &args[2];
     let module_args = if args.len() > 3 { &args[3..] } else { &[] };
 
-    let config = match VTabConfig::parse(module_args) {
+    let config = match VTabConfig::parse(module_args).and_then(|mut config| {
+        if config.root.is_relative() {
+            if let Some(directory) = database_directory(db, &args[1])? {
+                config.root = directory.join(&config.root);
+            }
+        }
+        Ok(config)
+    }) {
         Ok(c) => c,
         Err(err_msg) => {
             let c_err = CString::new(err_msg).unwrap_or_default();

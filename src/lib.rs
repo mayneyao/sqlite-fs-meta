@@ -6,9 +6,16 @@ pub mod vtab;
 use crate::vtab::SQLITE_OK;
 use sqlite_loadable::ext::sqlite3;
 use sqlite_loadable::prelude::*;
-use sqlite_loadable::{Error, Result};
+use sqlite_loadable::{api, define_scalar_function, Error, Result};
 
 fn init_fs_meta(db: *mut sqlite3) -> Result<()> {
+    define_scalar_function(
+        db,
+        "fs_meta_root_mode",
+        0,
+        |context, _| api::result_text(context, "database"),
+        FunctionFlags::UTF8 | FunctionFlags::DETERMINISTIC,
+    )?;
     unsafe {
         let rc = vtab::register_fs_meta_module(db);
         if rc != SQLITE_OK {
