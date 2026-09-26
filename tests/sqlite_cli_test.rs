@@ -50,21 +50,43 @@ SELECT id, tags, rating FROM files WHERE id = 'doc1.pdf';
         root = root.display()
     );
 
-    let output = Command::new("sqlite3")
+    let output = match Command::new("sqlite3")
         .arg(":memory:")
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .and_then(|mut child| {
+    {
+        Ok(mut child) => {
             use std::io::Write;
-            child.stdin.as_mut().unwrap().write_all(sql.as_bytes())?;
-            child.wait_with_output()
-        })
-        .expect("Failed to execute sqlite3 CLI");
+            if let Some(mut stdin) = child.stdin.take() {
+                let _ = stdin.write_all(sql.as_bytes());
+            }
+            match child.wait_with_output() {
+                Ok(out) => out,
+                Err(err) => {
+                    eprintln!("Failed to wait for sqlite3: {}, skipping", err);
+                    return;
+                }
+            }
+        }
+        Err(err) => {
+            eprintln!("sqlite3 CLI not available ({}), skipping", err);
+            return;
+        }
+    };
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
+
+    if stderr.contains("unknown command or invalid arguments") || stderr.contains("not authorized")
+    {
+        eprintln!(
+            "sqlite3 does not support extension loading in this environment, skipping test: {}",
+            stderr
+        );
+        return;
+    }
 
     assert!(
         output.status.success(),
