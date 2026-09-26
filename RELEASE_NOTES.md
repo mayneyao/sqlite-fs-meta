@@ -1,4 +1,6 @@
-# sqlite-fs-meta 0.2.1
+# sqlite-fs-meta 0.2.2
+
+This release delivers the changes prepared for 0.2.1, whose release build did not publish any binaries.
 
 - Resolve relative scan roots against the owning database directory, including attached databases, and decode escaped SQL string arguments.
 - Support JSON field definitions with independent storage keys. Field names may contain spaces, Unicode and quotes; renaming a column can preserve existing attributes.

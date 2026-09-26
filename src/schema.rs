@@ -126,10 +126,8 @@ impl VTabConfig {
                             });
                         }
                     }
-                    "on_delete" => {
-                        if val.eq_ignore_ascii_case("delete_file") {
-                            delete_physical_file = true;
-                        }
+                    "on_delete" if val.eq_ignore_ascii_case("delete_file") => {
+                        delete_physical_file = true;
                     }
                     _ => {}
                 }
