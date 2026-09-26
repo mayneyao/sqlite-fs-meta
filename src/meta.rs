@@ -1,41 +1,64 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-/// Reads the metadata envelope (key-value JSON) from the specified file.
+#[cfg(unix)]
+fn attribute_name(namespace: &str) -> std::borrow::Cow<'_, str> {
+    #[cfg(target_os = "linux")]
+    if !namespace.starts_with("user.") {
+        return format!("user.{namespace}").into();
+    }
+    namespace.into()
+}
+
+/// Preserve the exact envelope for transaction rollback, including absence.
+pub fn read_envelope(path: &Path, namespace: &str) -> std::io::Result<Option<Vec<u8>>> {
+    #[cfg(unix)]
+    {
+        xattr::get(path, attribute_name(namespace).as_ref())
+    }
+    #[cfg(windows)]
+    {
+        match std::fs::read(format!("{}:{}", path.display(), namespace)) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (path, namespace);
+        Err(std::io::ErrorKind::Unsupported.into())
+    }
+}
+
+pub fn restore_envelope(path: &Path, namespace: &str, bytes: Option<&[u8]>) -> std::io::Result<()> {
+    let Some(bytes) = bytes else {
+        return clear_metadata(path, namespace);
+    };
+    #[cfg(unix)]
+    {
+        xattr::set(path, attribute_name(namespace).as_ref(), bytes)
+    }
+    #[cfg(windows)]
+    {
+        std::fs::write(format!("{}:{}", path.display(), namespace), bytes)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (path, namespace, bytes);
+        Err(std::io::ErrorKind::Unsupported.into())
+    }
+}
+
+/// Reads metadata without silently discarding malformed external data.
 pub fn read_metadata(
     path: &Path,
     namespace: &str,
 ) -> std::io::Result<HashMap<String, serde_json::Value>> {
-    #[cfg(unix)]
-    {
-        match xattr::get(path, namespace)? {
-            Some(bytes) => {
-                let map: HashMap<String, serde_json::Value> =
-                    serde_json::from_slice(&bytes).unwrap_or_default();
-                Ok(map)
-            }
-            None => Ok(HashMap::new()),
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        let ads_path = format!("{}:{}", path.display(), namespace);
-        match std::fs::read(&ads_path) {
-            Ok(bytes) => {
-                let map: HashMap<String, serde_json::Value> =
-                    serde_json::from_slice(&bytes).unwrap_or_default();
-                Ok(map)
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
-            Err(e) => Err(e),
-        }
-    }
-
-    #[cfg(not(any(unix, windows)))]
-    {
-        let _ = (path, namespace);
-        Ok(HashMap::new())
+    match read_envelope(path, namespace)? {
+        None => Ok(HashMap::new()),
+        Some(bytes) => serde_json::from_slice(&bytes)
+            .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error)),
     }
 }
 
@@ -50,7 +73,7 @@ pub fn write_metadata(
 
     #[cfg(unix)]
     {
-        xattr::set(path, namespace, &bytes)
+        xattr::set(path, attribute_name(namespace).as_ref(), &bytes)
     }
 
     #[cfg(windows)]
@@ -73,7 +96,7 @@ pub fn write_metadata(
 pub fn clear_metadata(path: &Path, namespace: &str) -> std::io::Result<()> {
     #[cfg(unix)]
     {
-        match xattr::remove(path, namespace) {
+        match xattr::remove(path, attribute_name(namespace).as_ref()) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             #[cfg(target_os = "macos")]
@@ -98,5 +121,29 @@ pub fn clear_metadata(path: &Path, namespace: &str) -> std::io::Result<()> {
     {
         let _ = (path, namespace);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn envelopes_restore_exact_bytes_and_absence() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("proof.txt");
+        std::fs::write(&file, "proof").unwrap();
+        let namespace = "space.eidos.test";
+        assert_eq!(read_envelope(&file, namespace).unwrap(), None);
+        let original = b"{ \"rating\" : 4 }";
+        restore_envelope(&file, namespace, Some(original)).unwrap();
+        assert_eq!(read_metadata(&file, namespace).unwrap()["rating"], 4);
+        assert_eq!(
+            read_envelope(&file, namespace).unwrap(),
+            Some(original.to_vec())
+        );
+        restore_envelope(&file, namespace, Some(b"invalid JSON")).unwrap();
+        assert!(read_metadata(&file, namespace).is_err());
+        restore_envelope(&file, namespace, None).unwrap();
+        assert_eq!(read_envelope(&file, namespace).unwrap(), None);
     }
 }

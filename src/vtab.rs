@@ -1,5 +1,5 @@
 use crate::fs_scanner::{lookup_file, scan_directory, FileInfo};
-use crate::meta::{clear_metadata, read_metadata, write_metadata};
+use crate::meta::{clear_metadata, read_envelope, read_metadata, restore_envelope, write_metadata};
 use crate::schema::VTabConfig;
 
 use sha2::{Digest, Sha256};
@@ -58,7 +58,7 @@ unsafe fn database_directory(db: *mut sqlite3, schema: &str) -> Result<Option<Pa
 pub const SQLITE_OK: c_int = 0;
 pub const SQLITE_ERROR: c_int = 1;
 
-pub const SYSTEM_COLUMNS_COUNT: usize = 13;
+pub const SYSTEM_COLUMNS_COUNT: usize = 14;
 pub const COL__ID: usize = 0;
 pub const COL_ID: usize = 1;
 pub const COL_NAME: usize = 2;
@@ -72,6 +72,7 @@ pub const COL_IS_DIR: usize = 9;
 pub const COL_FILE: usize = 10;
 pub const COL_MIMETYPE: usize = 11;
 pub const COL_MIME_TYPE: usize = 12;
+pub const COL_REMOVE_KEY: usize = 13;
 
 pub fn deterministic_uuid_v7(path: &str) -> String {
     let mut hasher = Sha256::new();
@@ -165,10 +166,20 @@ pub fn encode_uri_path(path: &str) -> String {
 }
 
 pub fn format_file_entry(rel_path: &str, filename: &str, ext: &str, size: u64) -> String {
+    format_file_entry_with_uri(rel_path, rel_path, filename, ext, size)
+}
+
+fn format_file_entry_with_uri(
+    rel_path: &str,
+    uri_path: &str,
+    filename: &str,
+    ext: &str,
+    size: u64,
+) -> String {
     let id = deterministic_uuid_v7(rel_path);
     let media_type = guess_media_type(ext);
     let size_str = size.to_string();
-    let uri = encode_uri_path(rel_path);
+    let uri = encode_uri_path(uri_path);
 
     let mut entry = BTreeMap::new();
     entry.insert("id", id.as_str());
@@ -184,6 +195,9 @@ pub fn format_file_entry(rel_path: &str, filename: &str, ext: &str, size: u64) -
 pub struct FsMetaVTab {
     pub base: sqlite3_vtab,
     pub config: VTabConfig,
+    pub attachment_prefix: PathBuf,
+    journal: Vec<(PathBuf, Option<Vec<u8>>)>,
+    savepoints: BTreeMap<c_int, usize>,
 }
 
 #[repr(C)]
@@ -221,9 +235,22 @@ unsafe extern "C" fn vtab_connect(
     let table_name = &args[2];
     let module_args = if args.len() > 3 { &args[3..] } else { &[] };
 
+    let mut attachment_prefix = PathBuf::new();
     let config = match VTabConfig::parse(module_args).and_then(|mut config| {
+        let directory = database_directory(db, &args[1])?;
+        attachment_prefix = if directory.is_none() {
+            PathBuf::new()
+        } else if config.root.is_relative() {
+            config.root.clone()
+        } else {
+            directory
+                .as_ref()
+                .and_then(|base| config.root.strip_prefix(base).ok())
+                .unwrap_or(&config.root)
+                .to_path_buf()
+        };
         if config.root.is_relative() {
-            if let Some(directory) = database_directory(db, &args[1])? {
+            if let Some(directory) = directory {
                 config.root = directory.join(&config.root);
             }
         }
@@ -255,6 +282,9 @@ unsafe extern "C" fn vtab_connect(
             zErrMsg: std::ptr::null_mut(),
         },
         config,
+        attachment_prefix,
+        journal: Vec::new(),
+        savepoints: BTreeMap::new(),
     });
 
     *pp_vtab = Box::into_raw(vtab) as *mut sqlite3_vtab;
@@ -266,6 +296,15 @@ unsafe extern "C" fn vtab_disconnect(p_vtab: *mut sqlite3_vtab) -> c_int {
         let _ = Box::from_raw(p_vtab as *mut FsMetaVTab);
     }
     SQLITE_OK as c_int
+}
+
+unsafe extern "C" fn vtab_destroy(p: *mut sqlite3_vtab) -> c_int {
+    // SQLite disconnects dropped tables before rollback callbacks. Never discard
+    // a journal: the caller must commit/rollback its data writes before DDL.
+    if !(&*(p as *mut FsMetaVTab)).journal.is_empty() {
+        return SQLITE_ERROR;
+    }
+    vtab_disconnect(p)
 }
 
 unsafe extern "C" fn vtab_best_index(
@@ -416,8 +455,18 @@ unsafe extern "C" fn vtab_column(
             if file.is_dir {
                 result_null(ctx);
             } else {
-                let entry =
-                    format_file_entry(&file.rel_path, &file.filename, &file.extension, file.size);
+                let uri = vtab.attachment_prefix.join(&file.rel_path);
+                let uri = uri
+                    .components()
+                    .filter(|component| *component != std::path::Component::CurDir)
+                    .collect::<PathBuf>();
+                let entry = format_file_entry_with_uri(
+                    &file.rel_path,
+                    &crate::fs_scanner::to_posix_path(&uri),
+                    &file.filename,
+                    &file.extension,
+                    file.size,
+                );
                 let _ = result_text(ctx, &entry);
             }
         }
@@ -429,11 +478,12 @@ unsafe extern "C" fn vtab_column(
                 let _ = result_text(ctx, media_type);
             }
         }
+        COL_REMOVE_KEY => result_null(ctx),
         _ => {
             // User-defined custom metadata column
             let custom_idx = col - SYSTEM_COLUMNS_COUNT;
             if custom_idx < vtab.config.custom_columns.len() {
-                let col_name = &vtab.config.custom_columns[custom_idx].name;
+                let col_name = &vtab.config.custom_columns[custom_idx].storage_key;
 
                 // Lazily load metadata for the current file if not cached
                 if cursor.cached_meta_idx != cursor.current_idx {
@@ -487,7 +537,7 @@ unsafe extern "C" fn vtab_update(
     argv: *mut *mut sqlite3_value,
     _p_rowid: *mut i64,
 ) -> c_int {
-    let vtab = &*(p_vtab as *mut FsMetaVTab);
+    let vtab = &mut *(p_vtab as *mut FsMetaVTab);
     let args = slice::from_raw_parts(argv, argc as usize);
 
     if argc == 1 {
@@ -498,12 +548,25 @@ unsafe extern "C" fn vtab_update(
             Ok(s) => s,
             Err(_) => return SQLITE_ERROR as c_int,
         };
+        if lookup_file(&vtab.config.root, rel_path).is_none() {
+            return SQLITE_ERROR;
+        }
         let full_path = vtab.config.root.join(rel_path);
 
+        // Opt-in physical deletion retains its non-transactional semantics.
         if vtab.config.delete_physical_file {
-            let _ = std::fs::remove_file(full_path);
-        } else {
-            let _ = clear_metadata(&full_path, &vtab.config.namespace);
+            return if std::fs::remove_file(full_path).is_ok() {
+                SQLITE_OK
+            } else {
+                SQLITE_ERROR
+            };
+        }
+        let Ok(before) = read_envelope(&full_path, &vtab.config.namespace) else {
+            return SQLITE_ERROR;
+        };
+        vtab.journal.push((full_path.clone(), before));
+        if clear_metadata(&full_path, &vtab.config.namespace).is_err() {
+            return SQLITE_ERROR;
         }
         return SQLITE_OK as c_int;
     }
@@ -530,41 +593,64 @@ unsafe extern "C" fn vtab_update(
         };
         let full_path = vtab.config.root.join(rel_path);
 
-        if !full_path.exists() {
+        if lookup_file(&vtab.config.root, rel_path).is_none() {
             return SQLITE_ERROR as c_int;
         }
 
-        let mut meta = read_metadata(&full_path, &vtab.config.namespace).unwrap_or_default();
+        let Ok(mut meta) = read_metadata(&full_path, &vtab.config.namespace) else {
+            return SQLITE_ERROR;
+        };
+        let Ok(before) = read_envelope(&full_path, &vtab.config.namespace) else {
+            return SQLITE_ERROR;
+        };
 
-        // Custom columns start at column index 7, which corresponds to args[2 + 7] = args[9]
+        // The hidden command lets a rebuilt table remove a retired storage key
+        // while keeping the cleanup in the new table's rollback journal.
+        if let Some(value) = args.get(2 + COL_REMOVE_KEY) {
+            if value_type(value) == ValueType::Text {
+                let Ok(key) = value_text(value) else {
+                    return SQLITE_ERROR;
+                };
+                if meta.remove(key).is_none() {
+                    return SQLITE_OK;
+                }
+                vtab.journal.push((full_path.clone(), before));
+                return if write_metadata(&full_path, &vtab.config.namespace, &meta).is_ok() {
+                    SQLITE_OK
+                } else {
+                    SQLITE_ERROR
+                };
+            }
+        }
+
+        // Custom columns follow the intrinsic and hidden columns.
         for (i, col_def) in vtab.config.custom_columns.iter().enumerate() {
             let arg_idx = 2 + SYSTEM_COLUMNS_COUNT + i;
             if arg_idx < args.len() {
                 let col_val = args[arg_idx];
                 match value_type(&col_val) {
                     ValueType::Null => {
-                        meta.remove(&col_def.name);
+                        meta.remove(&col_def.storage_key);
                     }
                     ValueType::Integer => {
                         let num = value_int64(&col_val);
-                        meta.insert(col_def.name.clone(), serde_json::json!(num));
+                        meta.insert(col_def.storage_key.clone(), serde_json::json!(num));
                     }
                     ValueType::Float => {
                         let f = value_double(&col_val);
-                        meta.insert(col_def.name.clone(), serde_json::json!(f));
+                        meta.insert(col_def.storage_key.clone(), serde_json::json!(f));
                     }
                     ValueType::Text => {
                         if let Ok(text) = value_text(&col_val) {
-                            if text.is_empty() {
-                                meta.remove(&col_def.name);
-                            } else {
-                                // Try parsing as JSON array/object, otherwise store as string
-                                let parsed = match serde_json::from_str::<serde_json::Value>(text) {
-                                    Ok(json_obj) => json_obj,
-                                    Err(_) => serde_json::Value::String(text.to_string()),
-                                };
-                                meta.insert(col_def.name.clone(), parsed);
-                            }
+                            // TEXT scalars stay text, including "123", "null" and empty strings.
+                            let parsed = match serde_json::from_str::<serde_json::Value>(text) {
+                                Ok(
+                                    json @ (serde_json::Value::Array(_)
+                                    | serde_json::Value::Object(_)),
+                                ) => json,
+                                _ => serde_json::Value::String(text.to_string()),
+                            };
+                            meta.insert(col_def.storage_key.clone(), parsed);
                         }
                     }
                     ValueType::Blob => {
@@ -575,6 +661,7 @@ unsafe extern "C" fn vtab_update(
             }
         }
 
+        vtab.journal.push((full_path.clone(), before));
         if write_metadata(&full_path, &vtab.config.namespace, &meta).is_err() {
             return SQLITE_ERROR as c_int;
         }
@@ -585,13 +672,70 @@ unsafe extern "C" fn vtab_update(
     SQLITE_ERROR as c_int
 }
 
+unsafe extern "C" fn vtab_begin(_p: *mut sqlite3_vtab) -> c_int {
+    SQLITE_OK
+}
+unsafe extern "C" fn vtab_sync(_p: *mut sqlite3_vtab) -> c_int {
+    SQLITE_OK
+}
+unsafe extern "C" fn vtab_commit(p: *mut sqlite3_vtab) -> c_int {
+    let vtab = &mut *(p as *mut FsMetaVTab);
+    vtab.journal.clear();
+    vtab.savepoints.clear();
+    SQLITE_OK
+}
+fn restore_to(vtab: &mut FsMetaVTab, offset: usize) -> c_int {
+    let mut failed = Vec::new();
+    for (file, bytes) in vtab.journal.split_off(offset).into_iter().rev() {
+        // A failed write may have left the envelope unchanged (e.g. read-only
+        // media). It must not prevent restoration of earlier successful writes.
+        if read_envelope(&file, &vtab.config.namespace).ok().as_ref() == Some(&bytes) {
+            continue;
+        }
+        if restore_envelope(&file, &vtab.config.namespace, bytes.as_deref()).is_err() {
+            failed.push((file, bytes));
+        }
+    }
+    let rc = if failed.is_empty() {
+        SQLITE_OK
+    } else {
+        SQLITE_ERROR
+    };
+    vtab.journal.extend(failed.into_iter().rev());
+    rc
+}
+unsafe extern "C" fn vtab_rollback(p: *mut sqlite3_vtab) -> c_int {
+    let vtab = &mut *(p as *mut FsMetaVTab);
+    let rc = restore_to(vtab, 0);
+    vtab.savepoints.clear();
+    rc
+}
+unsafe extern "C" fn vtab_savepoint(p: *mut sqlite3_vtab, id: c_int) -> c_int {
+    let vtab = &mut *(p as *mut FsMetaVTab);
+    vtab.savepoints.insert(id, vtab.journal.len());
+    SQLITE_OK
+}
+unsafe extern "C" fn vtab_release(p: *mut sqlite3_vtab, id: c_int) -> c_int {
+    (&mut *(p as *mut FsMetaVTab))
+        .savepoints
+        .retain(|key, _| *key < id);
+    SQLITE_OK
+}
+unsafe extern "C" fn vtab_rollback_to(p: *mut sqlite3_vtab, id: c_int) -> c_int {
+    let vtab = &mut *(p as *mut FsMetaVTab);
+    let offset = vtab.savepoints.get(&id).copied().unwrap_or(0);
+    let rc = restore_to(vtab, offset);
+    vtab.savepoints.retain(|key, _| *key <= id);
+    rc
+}
+
 static FS_META_MODULE: sqlite3_module = sqlite3_module {
-    iVersion: 0,
+    iVersion: 2,
     xCreate: Some(vtab_connect),
     xConnect: Some(vtab_connect),
     xBestIndex: Some(vtab_best_index),
     xDisconnect: Some(vtab_disconnect),
-    xDestroy: Some(vtab_disconnect),
+    xDestroy: Some(vtab_destroy),
     xOpen: Some(vtab_open),
     xClose: Some(vtab_close),
     xFilter: Some(vtab_filter),
@@ -600,15 +744,15 @@ static FS_META_MODULE: sqlite3_module = sqlite3_module {
     xColumn: Some(vtab_column),
     xRowid: Some(vtab_rowid),
     xUpdate: Some(vtab_update),
-    xBegin: None,
-    xSync: None,
-    xCommit: None,
-    xRollback: None,
+    xBegin: Some(vtab_begin),
+    xSync: Some(vtab_sync),
+    xCommit: Some(vtab_commit),
+    xRollback: Some(vtab_rollback),
     xFindFunction: None,
     xRename: None,
-    xSavepoint: None,
-    xRelease: None,
-    xRollbackTo: None,
+    xSavepoint: Some(vtab_savepoint),
+    xRelease: Some(vtab_release),
+    xRollbackTo: Some(vtab_rollback_to),
     xShadowName: None,
 };
 
@@ -631,6 +775,34 @@ pub unsafe fn register_fs_meta_module(db: *mut sqlite3) -> c_int {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rollback_continues_after_one_unrecoverable_path() {
+        let root = tempfile::tempdir().unwrap();
+        let file = root.path().join("proof.txt");
+        std::fs::write(&file, "proof").unwrap();
+        let mut vtab = FsMetaVTab {
+            base: sqlite3_vtab {
+                pModule: std::ptr::null(),
+                nRef: 0,
+                zErrMsg: std::ptr::null_mut(),
+            },
+            config: VTabConfig::parse(&["root='.'".into()]).unwrap(),
+            attachment_prefix: PathBuf::new(),
+            journal: vec![
+                (file.clone(), Some(b"{\"rating\":4}".to_vec())),
+                (root.path().join("missing.txt"), Some(b"{}".to_vec())),
+            ],
+            savepoints: BTreeMap::new(),
+        };
+        restore_envelope(&file, &vtab.config.namespace, Some(b"{\"rating\":1}")).unwrap();
+        assert_eq!(restore_to(&mut vtab, 0), SQLITE_ERROR);
+        assert_eq!(
+            read_metadata(&file, &vtab.config.namespace).unwrap()["rating"],
+            4
+        );
+        assert_eq!(vtab.journal.len(), 1);
+    }
 
     #[test]
     fn test_uuid_v7_format() {

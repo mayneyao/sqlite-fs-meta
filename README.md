@@ -125,6 +125,23 @@ string arguments decode doubled quotes: `root='O''Brien'` addresses `O'Brien`.
 
 ## 5. Running Tests
 
+Metadata updates and clears participate in normal transaction/savepoint rollback.
+The extension retains exact pre-write envelopes in memory, restoring them on
+rollback. This does not provide crash atomicity across SQLite and xattr/ADS or
+isolation from other filesystem writers. Opt-in physical file deletion remains
+irreversible. `DROP TABLE` with pending metadata writes is rejected; commit or
+roll back those writes first. On Linux, unqualified namespaces use `user.`.
+
+`fields` also accepts a JSON array, for example
+`fields='[{"name":"Review status","type":"TEXT","key":"review-status"}]'`.
+Keep `key` unchanged when renaming the SQL column to preserve attribute values.
+The hidden `__fs_meta_remove_key` command column removes a retired key through
+the current table's transaction journal after rebuilding its schema.
+
+For on-disk databases, attachment URIs are relative to the database directory,
+including the scan-root prefix. Row IDs remain relative to the scan root.
+`fs_meta_capabilities()` reports support for these semantics.
+
 ```bash
 cargo test
 ```

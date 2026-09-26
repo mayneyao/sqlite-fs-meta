@@ -37,6 +37,11 @@ jobs:
             binary_name: fs_meta.dll
             raw_output: fs_meta-x86_64-pc-windows-msvc.dll
             archive_ext: zip
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            binary_name: libfs_meta.so
+            raw_output: libfs_meta-aarch64-unknown-linux-gnu.so
+            archive_ext: tar.gz
 
     steps:
       - name: Checkout repository
@@ -48,7 +53,12 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Check and test native metadata behavior
+        run: |
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --lib --locked
 
       - name: Package artifacts
         shell: bash
@@ -116,7 +126,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         with:
           files: release-assets/*
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
 
       - name: Publish Snapshot Release (Manual Trigger)
         uses: softprops/action-gh-release@v2

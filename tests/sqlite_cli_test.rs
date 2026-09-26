@@ -44,6 +44,15 @@ fn relative_roots_follow_database_moves_and_decode_quoted_paths() {
     assert_eq!(run(&file, "UPDATE files SET rating=7 WHERE name='proof.txt'; SELECT rating FROM files WHERE name='proof.txt';"), "7");
     let attached = file.to_str().unwrap().replace('\'', "''");
     assert_eq!(run(std::path::Path::new(":memory:"), &format!("ATTACH '{attached}' AS other; SELECT rating FROM other.files WHERE name='proof.txt';")), "7");
+    assert_eq!(run(&file, "BEGIN; UPDATE files SET rating=1 WHERE _id='proof.txt'; ROLLBACK; SELECT rating FROM files WHERE _id='proof.txt';"), "7");
+    assert_eq!(run(&file, "BEGIN; UPDATE files SET rating=2 WHERE _id='proof.txt'; SAVEPOINT inner; UPDATE files SET rating=3 WHERE _id='proof.txt'; ROLLBACK TO inner; RELEASE inner; COMMIT; SELECT rating FROM files WHERE _id='proof.txt';"), "2");
+    assert_eq!(
+        run(
+            &file,
+            r#"DROP TABLE files; CREATE VIRTUAL TABLE files USING fs_meta(root='.', fields='[{"name":"Owner''s rating","type":"INTEGER","key":"rating"}]'); SELECT "Owner's rating" FROM files WHERE _id='proof.txt';"#
+        ),
+        "2"
+    );
 }
 
 #[test]

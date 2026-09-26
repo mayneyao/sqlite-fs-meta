@@ -11,6 +11,18 @@ use sqlite_loadable::{api, define_scalar_function, Error, Result};
 fn init_fs_meta(db: *mut sqlite3) -> Result<()> {
     define_scalar_function(
         db,
+        "fs_meta_capabilities",
+        0,
+        |context, _| {
+            api::result_text(
+                context,
+                "[\"storage-keys\",\"metadata-rollback\",\"database-relative-uris\"]",
+            )
+        },
+        FunctionFlags::UTF8 | FunctionFlags::DETERMINISTIC,
+    )?;
+    define_scalar_function(
+        db,
         "fs_meta_root_mode",
         0,
         |context, _| api::result_text(context, "database"),

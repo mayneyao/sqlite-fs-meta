@@ -25,6 +25,7 @@ fn decode_argument(value: &str) -> Result<String, String> {
 pub struct ColumnDef {
     pub name: String,
     pub data_type: String,
+    pub storage_key: String,
 }
 
 #[derive(Debug, Clone)]
@@ -75,6 +76,34 @@ impl VTabConfig {
                         ignore_patterns.extend(additional);
                     }
                     "fields" => {
+                        if val.trim_start().starts_with('[') {
+                            #[derive(serde::Deserialize)]
+                            #[serde(deny_unknown_fields)]
+                            struct Field {
+                                name: String,
+                                #[serde(rename = "type")]
+                                data_type: String,
+                                key: Option<String>,
+                            }
+                            let fields: Vec<Field> = serde_json::from_str(&val)
+                                .map_err(|error| format!("Invalid fields JSON: {error}"))?;
+                            for field in fields {
+                                let data_type = field.data_type.to_uppercase();
+                                if !["TEXT", "INTEGER", "REAL", "BLOB"]
+                                    .contains(&data_type.as_str())
+                                    || field.name.is_empty()
+                                    || field.name.contains('\0')
+                                {
+                                    return Err("Invalid field definition".into());
+                                }
+                                custom_columns.push(ColumnDef {
+                                    storage_key: field.key.unwrap_or_else(|| field.name.clone()),
+                                    name: field.name,
+                                    data_type,
+                                });
+                            }
+                            continue;
+                        }
                         for col_str in val.split(',') {
                             let col_trimmed = col_str.trim();
                             if col_trimmed.is_empty() {
@@ -91,6 +120,7 @@ impl VTabConfig {
                                 "TEXT".to_string()
                             };
                             custom_columns.push(ColumnDef {
+                                storage_key: col_name.clone(),
                                 name: col_name,
                                 data_type: col_type,
                             });
@@ -139,6 +169,7 @@ impl VTabConfig {
             "\"file\" TEXT".to_string(),
             "\"mimetype\" TEXT".to_string(),
             "\"mime_type\" TEXT".to_string(),
+            "\"__fs_meta_remove_key\" TEXT HIDDEN".to_string(),
         ];
 
         for col in &self.custom_columns {
@@ -160,6 +191,23 @@ impl VTabConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn json_fields_separate_sql_names_from_storage_keys() {
+        let config = VTabConfig::parse(&[
+            "root='.'".into(),
+            r#"fields='[{"name":"Owner''s review, 备注","type":"TEXT","key":"stable-key"}]'"#
+                .into(),
+        ])
+        .unwrap();
+        assert_eq!(config.custom_columns[0].name, "Owner's review, 备注");
+        assert_eq!(config.custom_columns[0].storage_key, "stable-key");
+        assert!(VTabConfig::parse(&[
+            "root='.'".into(),
+            r#"fields='[{"name":"bad","type":"TEXT); DROP TABLE files"}]'"#.into()
+        ])
+        .is_err());
+    }
 
     #[test]
     fn decodes_sql_quotes_without_trimming_path_characters() {

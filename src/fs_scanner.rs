@@ -76,7 +76,7 @@ pub fn scan_directory(root: &Path, ignore_patterns: &[String]) -> Vec<FileInfo> 
 
         let is_dir = metadata.is_dir();
         // Skip directories in list (unless desired), or list them
-        if is_dir {
+        if !metadata.is_file() {
             continue;
         }
 
@@ -122,8 +122,15 @@ pub fn lookup_file(root: &Path, rel_path: &str) -> Option<FileInfo> {
         return None;
     }
     let target = root.join(rel_path);
-    let metadata = target.metadata().ok()?;
-    if metadata.is_dir() {
+    let mut current = root.to_path_buf();
+    for part in Path::new(rel_path).components() {
+        current.push(part);
+        if current.symlink_metadata().ok()?.file_type().is_symlink() {
+            return None;
+        }
+    }
+    let metadata = target.symlink_metadata().ok()?;
+    if !metadata.is_file() {
         return None;
     }
 
