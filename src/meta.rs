@@ -1,6 +1,25 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+#[cfg(windows)]
+fn hold_metadata_file(path: &Path) -> std::io::Result<std::fs::File> {
+    use std::os::windows::fs::OpenOptionsExt;
+    // ADS writes can create the base file. Open an existing regular file first
+    // and deny deletion until the stream operation finishes.
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0x1 | 0x2) // FILE_SHARE_READ | FILE_SHARE_WRITE
+        .custom_flags(0x00200000) // FILE_FLAG_OPEN_REPARSE_POINT
+        .open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Metadata requires an existing regular file",
+        ));
+    }
+    Ok(file)
+}
+
 #[cfg(unix)]
 fn attribute_name(namespace: &str) -> std::borrow::Cow<'_, str> {
     #[cfg(target_os = "linux")]
@@ -18,6 +37,7 @@ pub fn read_envelope(path: &Path, namespace: &str) -> std::io::Result<Option<Vec
     }
     #[cfg(windows)]
     {
+        let _file = hold_metadata_file(path)?;
         match std::fs::read(format!("{}:{}", path.display(), namespace)) {
             Ok(bytes) => Ok(Some(bytes)),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -41,6 +61,7 @@ pub fn restore_envelope(path: &Path, namespace: &str, bytes: Option<&[u8]>) -> s
     }
     #[cfg(windows)]
     {
+        let _file = hold_metadata_file(path)?;
         std::fs::write(format!("{}:{}", path.display(), namespace), bytes)
     }
     #[cfg(not(any(unix, windows)))]
@@ -78,6 +99,7 @@ pub fn write_metadata(
 
     #[cfg(windows)]
     {
+        let _file = hold_metadata_file(path)?;
         let ads_path = format!("{}:{}", path.display(), namespace);
         std::fs::write(&ads_path, &bytes)
     }
@@ -127,6 +149,16 @@ pub fn clear_metadata(path: &Path, namespace: &str) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn metadata_operations_never_recreate_missing_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let file = directory.path().join("missing.txt");
+        let namespace = "space.eidos.test";
+        assert!(read_envelope(&file, namespace).is_err());
+        assert!(restore_envelope(&file, namespace, Some(b"{}")).is_err());
+        assert!(write_metadata(&file, namespace, &HashMap::new()).is_err());
+        assert!(!file.exists());
+    }
     #[test]
     fn envelopes_restore_exact_bytes_and_absence() {
         let directory = tempfile::tempdir().unwrap();
