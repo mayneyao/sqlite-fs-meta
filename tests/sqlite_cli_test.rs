@@ -1,39 +1,84 @@
 use std::fs;
-use std::process::Command;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 use tempfile::tempdir;
+
+fn extension_library() -> &'static Path {
+    static LIBRARY: OnceLock<PathBuf> = OnceLock::new();
+    LIBRARY.get_or_init(|| {
+        assert!(Command::new(env!("CARGO"))
+            .args(["build", "--locked"])
+            .status()
+            .expect("Failed to build test extension")
+            .success());
+        let library = std::env::current_exe()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join(format!(
+                "{}fs_meta{}",
+                std::env::consts::DLL_PREFIX,
+                std::env::consts::DLL_SUFFIX
+            ));
+        assert!(
+            library.is_file(),
+            "Missing extension: {}",
+            library.display()
+        );
+        library
+    })
+}
+
+fn sql_string(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+fn run_sqlite(cwd: &Path, database: &Path, sql: &str) -> String {
+    let executable = std::env::var_os("SQLITE3_BIN").unwrap_or_else(|| "sqlite3".into());
+    let mut child = Command::new(&executable)
+        .current_dir(cwd)
+        .arg("-bail")
+        .arg(database)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|error| {
+            panic!("Cannot run {executable:?}: {error}. Set SQLITE3_BIN to an extension-enabled SQLite CLI.")
+        });
+    writeln!(
+        child.stdin.take().unwrap(),
+        "SELECT load_extension({}, 'sqlite3_fsmeta_init');\n{sql}",
+        sql_string(&extension_library().to_string_lossy())
+    )
+    .expect("Failed to send SQL to SQLite CLI");
+    let output = child
+        .wait_with_output()
+        .expect("Failed to wait for SQLite CLI");
+    assert!(
+        output.status.success(),
+        "SQLite CLI {executable:?} failed (extension loading is required): {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).unwrap().trim().to_string()
+}
 
 #[test]
 fn relative_roots_follow_database_moves_and_decode_quoted_paths() {
-    assert!(Command::new("cargo")
-        .args(["build", "--locked"])
-        .status()
-        .unwrap()
-        .success());
-    let library = std::env::current_dir()
-        .unwrap()
-        .join("target/debug/libfs_meta");
     let temp = tempdir().unwrap();
-    let root = temp.path().join("O'Brien \"notes\"");
+    // Keep SQL quote/space coverage on Windows; double quotes are invalid there.
+    let root = temp.path().join(if cfg!(windows) {
+        "O'Brien notes"
+    } else {
+        "O'Brien \"notes\""
+    });
     fs::create_dir(&root).unwrap();
     fs::write(root.join("proof.txt"), "proof").unwrap();
-    let run = |db: &std::path::Path, sql: &str| {
-        let output =
-            Command::new(std::env::var("SQLITE3_BIN").unwrap_or_else(|_| "sqlite3".into()))
-                .current_dir(temp.path())
-                .arg("-bail")
-                .arg("-cmd")
-                .arg(format!(".load {}", library.display()))
-                .arg(db)
-                .arg(sql)
-                .output()
-                .unwrap();
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        String::from_utf8(output.stdout).unwrap().trim().to_string()
-    };
+    let run = |db: &Path, sql: &str| run_sqlite(temp.path(), db, sql);
     let file = root.join("files.sqlite");
     assert_eq!(run(&file, "CREATE VIRTUAL TABLE files USING fs_meta(root='.', fields='rating INTEGER'); SELECT count(*) FROM files WHERE name='proof.txt';"), "1");
     let absolute_root = root.to_str().unwrap().replace('\'', "''");
@@ -57,16 +102,6 @@ fn relative_roots_follow_database_moves_and_decode_quoted_paths() {
 
 #[test]
 fn test_sqlite_fs_meta_e2e() {
-    let dylib_path = std::env::current_dir()
-        .unwrap()
-        .join("target/debug/libfs_meta");
-
-    let status = Command::new("cargo")
-        .arg("build")
-        .status()
-        .expect("Failed to build cdylib for test");
-    assert!(status.success());
-
     let temp = tempdir().unwrap();
     let root = temp.path();
 
@@ -77,9 +112,8 @@ fn test_sqlite_fs_meta_e2e() {
 
     let sql = format!(
         r#"
-.load {dylib}
 CREATE VIRTUAL TABLE files USING fs_meta(
-    root = '{root}',
+    root = {root},
     fields = 'tags TEXT, rating INTEGER, status TEXT'
 );
 
@@ -99,56 +133,10 @@ SELECT id, mimetype, tags, rating, status, file FROM files WHERE id = 'doc1.pdf'
 DELETE FROM files WHERE id = 'doc1.pdf';
 SELECT id, tags, rating FROM files WHERE id = 'doc1.pdf';
 "#,
-        dylib = dylib_path.display(),
-        root = root.display()
+        root = sql_string(&root.to_string_lossy())
     );
 
-    let output =
-        match Command::new(std::env::var("SQLITE3_BIN").unwrap_or_else(|_| "sqlite3".into()))
-            .arg(":memory:")
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-        {
-            Ok(mut child) => {
-                use std::io::Write;
-                if let Some(mut stdin) = child.stdin.take() {
-                    let _ = stdin.write_all(sql.as_bytes());
-                }
-                match child.wait_with_output() {
-                    Ok(out) => out,
-                    Err(err) => {
-                        eprintln!("Failed to wait for sqlite3: {}, skipping", err);
-                        return;
-                    }
-                }
-            }
-            Err(err) => {
-                eprintln!("sqlite3 CLI not available ({}), skipping", err);
-                return;
-            }
-        };
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    if stderr.contains("unknown command or invalid arguments") || stderr.contains("not authorized")
-    {
-        eprintln!(
-            "sqlite3 does not support extension loading in this environment, skipping test: {}",
-            stderr
-        );
-        return;
-    }
-
-    assert!(
-        output.status.success(),
-        "sqlite3 failed with stderr: {}",
-        stderr
-    );
-
-    println!("STDOUT:\n{}", stdout);
+    let stdout = run_sqlite(root, Path::new(":memory:"), &sql);
 
     assert!(stdout.contains("doc1.pdf|doc1.pdf|pdf|application/pdf|application/pdf|"));
     assert!(stdout.contains("sub/image.png|image.png|png|image/png|image/png|"));

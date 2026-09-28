@@ -13,6 +13,7 @@ jobs:
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -26,8 +27,34 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install extension-enabled SQLite on macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew install sqlite
+          echo "SQLITE3_BIN=$(brew --prefix sqlite)/bin/sqlite3" >> "$GITHUB_ENV"
+
+      - name: Install SQLite on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlite3
+          echo "SQLITE3_BIN=$(command -v sqlite3)" >> "$GITHUB_ENV"
+
+      - name: Install SQLite on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install sqlite --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "SQLITE3_BIN=$((Get-Command sqlite3.exe).Source)" >> $env:GITHUB_ENV
+
+      - name: Format and lint
+        run: |
+          cargo fmt --all --check
+          cargo clippy --all-targets --locked -- -D warnings
+
       - name: Build
-        run: cargo build
+        run: cargo build --locked
 
       - name: Run tests
-        run: cargo test
+        run: cargo test --locked
