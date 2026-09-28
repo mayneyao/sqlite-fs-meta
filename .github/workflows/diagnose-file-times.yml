@@ -1,0 +1,48 @@
+name: Temporary file timestamp diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Observe timestamps (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: fs_meta-x86_64-pc-windows-msvc.dll
+          - os: macos-14
+            asset: libfs_meta-aarch64-apple-darwin.dylib
+          - os: ubuntu-latest
+            asset: libfs_meta-x86_64-unknown-linux-gnu.so
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.16.0'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Download and verify the version shipped in Lite 0.19.1
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          gh release download v0.2.3 --repo mayneyao/sqlite-fs-meta --dir diagnostic-bin --pattern "$ASSET" --pattern SHA256SUMS
+          python -c 'import hashlib,os,pathlib; p=pathlib.Path("diagnostic-bin"); n=os.environ["ASSET"]; lines=(p/"SHA256SUMS").read_text().splitlines(); expected=next(line.split()[0] for line in lines if line.split()[-1].lstrip("*")==n); actual=hashlib.sha256((p/n).read_bytes()).hexdigest(); assert actual==expected, (actual,expected); print(n,actual)'
+      - name: Observe native, Node and virtual-table timestamps
+        run: python scripts/diagnose_file_times.py --extension "diagnostic-bin/${{ matrix.asset }}" --output evidence
+      - name: Upload diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: file-times-${{ matrix.os }}
+          path: evidence/
+          if-no-files-found: error
