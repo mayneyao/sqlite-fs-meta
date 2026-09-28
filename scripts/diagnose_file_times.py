@@ -16,7 +16,7 @@ const fs = require('node:fs');
 const {DatabaseSync} = require('node:sqlite');
 const [extension, database, file, sql] = process.argv.slice(1);
 const db = new DatabaseSync(database, {allowExtension:true});
-db.loadExtension(extension);
+db.loadExtension(extension, 'sqlite3_fsmeta_init');
 try {
   if(sql) db.exec(sql);
   const row=db.prepare('SELECT _created_at, _updated_at, mtime, rating FROM files WHERE _id=?').get('probe.txt');
@@ -98,7 +98,8 @@ def main():
             original = b'File content must remain unchanged.\n'
             file.write_bytes(original)
             # Deliberately distinguish true birth time from content modification time.
-            os.utime(file, (946684800, 946684800))
+            # A future mtime avoids macOS moving birthtime backwards with a backdated mtime.
+            os.utime(file, (1893456000, 1893456000))
             database = root / '.diagnostic.sqlite'
             setup = "CREATE VIRTUAL TABLE files USING fs_meta(root='.', namespace='space.eidos.meta', fields='rating INTEGER');"
             previous = None
@@ -123,7 +124,7 @@ def main():
                 previous = value
                 print(json.dumps(value), flush=True)
 
-            record('baseline (mtime set to 2000; birth time remains real)', setup)
+            record('baseline (mtime set to 2030; birth time remains real)', setup)
             record('SQL: add rating', 'UPDATE files SET rating=1;', expected=1)
             record('SQL: update rating', 'UPDATE files SET rating=2;', expected=2)
             record('SQL: write same value', 'UPDATE files SET rating=2;', expected=2)
