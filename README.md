@@ -67,8 +67,16 @@ xattr -l /path/to/my_space/contracts/2026.pdf
 | `path` | `TEXT` | Relative path (same as `id`) |
 | `size` | `INTEGER` | File size in bytes (`stat.st_size`) |
 | `mtime` | `TEXT` | ISO 8601 modification timestamp (UTC) |
+| `_created_at` | `TEXT` | Real filesystem creation (birth) timestamp in UTC; `NULL` when unavailable. Never falls back to modification or inode change time. |
+| `_updated_at` | `TEXT` | Same filesystem modification timestamp as `mtime`. |
 | `extension` | `TEXT` | Lowercase file extension (without dot, e.g. `pdf`) |
 | `is_dir` | `INTEGER` | `0` for regular file, `1` for directory |
+
+Metadata writes do not change the file's real creation time. On Windows, writing
+an alternate data stream can update `mtime` and `_updated_at`, even when writing
+the same metadata value or rolling back a metadata transaction. On macOS and
+Linux, xattr writes normally change inode status time instead of `mtime`.
+Metadata rollback restores attribute values, not filesystem timestamps.
 
 ### User-Defined Custom Columns
 Specified in the `fields` argument of `USING fs_meta(...)`:

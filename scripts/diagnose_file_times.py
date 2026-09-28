@@ -14,13 +14,26 @@ import time
 NODE_PROBE = r"""
 const fs = require('node:fs');
 const {DatabaseSync} = require('node:sqlite');
-const [extension, database, file, sql] = process.argv.slice(1);
+const [extension, database, file, sql, verify] = process.argv.slice(1);
 const db = new DatabaseSync(database, {allowExtension:true});
 db.loadExtension(extension, 'sqlite3_fsmeta_init');
 try {
   if(sql) db.exec(sql);
   const row=db.prepare('SELECT _created_at, _updated_at, mtime, rating FROM files WHERE _id=?').get('probe.txt');
+  const scanned=db.prepare('SELECT _created_at, _updated_at, mtime, rating FROM files').all();
+  if(scanned.length!==1 || JSON.stringify(scanned[0])!==JSON.stringify(row))
+    throw new Error('Scan and single-file lookup disagree');
   const stat=fs.statSync(file,{bigint:true});
+  if(verify==='true') {
+    if(stat.birthtimeNs > 0n) {
+      if(row._created_at===null || BigInt(Date.parse(row._created_at))!==stat.birthtimeNs/1000000n)
+        throw new Error('Virtual creation time does not match filesystem birth time');
+    } else if(row._created_at!==null) {
+      throw new Error('Unavailable creation time must be NULL');
+    }
+    if(row._updated_at!==row.mtime || BigInt(Date.parse(row.mtime))!==stat.mtimeNs/1000000n)
+      throw new Error('Virtual modification time does not match filesystem mtime');
+  }
   console.log(JSON.stringify({row,node:Object.fromEntries(['birthtimeNs','mtimeNs','ctimeNs','atimeNs','ino','size'].map(k=>[k,String(stat[k])]))}));
 } finally { db.close(); }
 """
@@ -83,6 +96,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--extension', required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--verify-creation-time', action='store_true')
     args = parser.parse_args()
     extension = Path(args.extension).resolve()
     output = Path(args.output).resolve()
@@ -90,7 +104,8 @@ def main():
     report = {'platform': platform.platform(), 'python': platform.python_version(),
               'node': subprocess.check_output(['node', '--version'], text=True).strip(),
               'extension_sha256': hashlib.sha256(extension.read_bytes()).hexdigest(),
-              'release': 'v0.2.3', 'steps': []}
+              'binary': 'source' if args.verify_creation_time else 'v0.2.3',
+              'source_commit': os.environ.get('GITHUB_SHA'), 'steps': []}
     try:
         with tempfile.TemporaryDirectory(prefix='fs-meta-times-') as temporary:
             root = Path(temporary)
@@ -111,12 +126,16 @@ def main():
                 if raw:
                     raw()
                 value = json.loads(subprocess.check_output(
-                    ['node', '-e', NODE_PROBE, str(extension), str(database), str(file), sql], text=True))
+                    ['node', '-e', NODE_PROBE, str(extension), str(database), str(file), sql,
+                     str(args.verify_creation_time).lower()], text=True))
                 value['native'] = native_times(file)
                 value['name'] = name
                 value['content_sha256'] = hashlib.sha256(file.read_bytes()).hexdigest()
                 assert file.read_bytes() == original, 'Metadata operation changed main stream'
                 assert value['row']['rating'] == expected, (name, value['row'], expected)
+                if previous is not None and args.verify_creation_time:
+                    assert value['row']['_created_at'] == previous['row']['_created_at'], 'Creation time changed'
+                    assert value['node']['birthtimeNs'] == previous['node']['birthtimeNs'], 'Native birth time changed'
                 value['changed'] = {} if previous is None else {
                     group: [key for key in value[group] if value[group][key] != previous[group][key]]
                     for group in ['native', 'node', 'row']}

@@ -8,6 +8,8 @@ pub struct FileInfo {
     pub filename: String,
     pub extension: String,
     pub size: u64,
+    /// Real filesystem birth time; unavailable is distinct from modification time.
+    pub created_at_iso: Option<String>,
     pub mtime_iso: String,
     pub is_dir: bool,
 }
@@ -94,6 +96,10 @@ pub fn scan_directory(root: &Path, ignore_patterns: &[String]) -> Vec<FileInfo> 
             .to_lowercase();
 
         let size = metadata.len();
+        let created_at_iso = metadata.created().ok().map(|time| {
+            let dt: DateTime<Utc> = time.into();
+            dt.to_rfc3339()
+        });
         let mtime_iso = metadata
             .modified()
             .ok()
@@ -108,6 +114,7 @@ pub fn scan_directory(root: &Path, ignore_patterns: &[String]) -> Vec<FileInfo> 
             filename,
             extension,
             size,
+            created_at_iso,
             mtime_iso,
             is_dir,
         });
@@ -141,6 +148,10 @@ pub fn lookup_file(root: &Path, rel_path: &str) -> Option<FileInfo> {
         .unwrap_or("")
         .to_lowercase();
     let size = metadata.len();
+    let created_at_iso = metadata.created().ok().map(|time| {
+        let dt: DateTime<Utc> = time.into();
+        dt.to_rfc3339()
+    });
     let mtime_iso = metadata
         .modified()
         .ok()
@@ -155,7 +166,65 @@ pub fn lookup_file(root: &Path, rel_path: &str) -> Option<FileInfo> {
         filename,
         extension,
         size,
+        created_at_iso,
         mtime_iso,
         is_dir: false,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::meta::{clear_metadata, write_metadata};
+    use std::collections::HashMap;
+    use std::fs::{File, FileTimes};
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn creation_time_is_independent_of_mtime_and_metadata_edits() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("probe.txt");
+        std::fs::write(&path, b"unchanged").unwrap();
+        let created = path.metadata().unwrap().created().ok();
+        // Do not backdate mtime: macOS may also move birthtime backwards.
+        let modified = SystemTime::now() + Duration::from_secs(86400);
+        File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_times(FileTimes::new().set_modified(modified))
+            .unwrap();
+        let expected = created.map(|time| DateTime::<Utc>::from(time).to_rfc3339());
+        let check = || {
+            let scan = scan_directory(root.path(), &[]);
+            assert_eq!(scan.len(), 1);
+            let lookup = lookup_file(root.path(), "probe.txt").unwrap();
+            for info in [&scan[0], &lookup] {
+                assert_eq!(info.created_at_iso, expected);
+                assert_eq!(
+                    info.mtime_iso,
+                    DateTime::<Utc>::from(path.metadata().unwrap().modified().unwrap())
+                        .to_rfc3339()
+                );
+            }
+            assert_eq!(std::fs::read(&path).unwrap(), b"unchanged");
+        };
+        check();
+        let initial = lookup_file(root.path(), "probe.txt").unwrap();
+        assert_ne!(
+            initial.created_at_iso.as_deref(),
+            Some(initial.mtime_iso.as_str())
+        );
+        for rating in [1, 2, 2] {
+            write_metadata(
+                &path,
+                "space.eidos.test",
+                &HashMap::from([("rating".into(), serde_json::json!(rating))]),
+            )
+            .unwrap();
+            check();
+        }
+        clear_metadata(&path, "space.eidos.test").unwrap();
+        check();
+    }
 }

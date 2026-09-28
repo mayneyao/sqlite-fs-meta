@@ -445,7 +445,14 @@ unsafe extern "C" fn vtab_column(
         COL_SIZE => {
             result_int64(ctx, file.size as i64);
         }
-        COL__CREATED_AT | COL__UPDATED_AT | COL_MTIME => {
+        COL__CREATED_AT => {
+            if let Some(created_at) = &file.created_at_iso {
+                let _ = result_text(ctx, created_at);
+            } else {
+                result_null(ctx);
+            }
+        }
+        COL__UPDATED_AT | COL_MTIME => {
             let _ = result_text(ctx, &file.mtime_iso);
         }
         COL_IS_DIR => {

@@ -2,6 +2,12 @@ name: Temporary file timestamp diagnostics
 
 on:
   workflow_dispatch:
+    inputs:
+      binary:
+        description: Released v0.2.3 or build and verify current source
+        type: choice
+        options: [released, source]
+        default: released
 
 permissions:
   contents: read
@@ -17,10 +23,13 @@ jobs:
         include:
           - os: windows-latest
             asset: fs_meta-x86_64-pc-windows-msvc.dll
+            library: fs_meta.dll
           - os: macos-14
             asset: libfs_meta-aarch64-apple-darwin.dylib
+            library: libfs_meta.dylib
           - os: ubuntu-latest
             asset: libfs_meta-x86_64-unknown-linux-gnu.so
+            library: libfs_meta.so
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,6 +39,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Download and verify the version shipped in Lite 0.19.1
+        if: inputs.binary == 'released'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -38,7 +48,20 @@ jobs:
           gh release download v0.2.3 --repo mayneyao/sqlite-fs-meta --dir diagnostic-bin --pattern "$ASSET" --pattern SHA256SUMS
           python -c 'import hashlib,os,pathlib; p=pathlib.Path("diagnostic-bin"); n=os.environ["ASSET"]; lines=(p/"SHA256SUMS").read_text().splitlines(); expected=next(line.split()[0] for line in lines if line.split()[-1].lstrip("*")==n); actual=hashlib.sha256((p/n).read_bytes()).hexdigest(); assert actual==expected, (actual,expected); print(n,actual)'
       - name: Observe native, Node and virtual-table timestamps
+        if: inputs.binary == 'released'
         run: python scripts/diagnose_file_times.py --extension "diagnostic-bin/${{ matrix.asset }}" --output evidence
+      - uses: dtolnay/rust-toolchain@stable
+        if: inputs.binary == 'source'
+      - name: Build and test source
+        if: inputs.binary == 'source'
+        run: |
+          cargo fmt --all --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --lib --locked
+          cargo build --locked
+      - name: Verify creation timestamps through SQLite
+        if: inputs.binary == 'source'
+        run: python scripts/diagnose_file_times.py --extension "target/debug/${{ matrix.library }}" --output evidence --verify-creation-time
       - name: Upload diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v4
