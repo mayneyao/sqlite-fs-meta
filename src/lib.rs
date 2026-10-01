@@ -1,5 +1,6 @@
 pub mod fs_scanner;
 pub mod meta;
+pub mod property_api;
 pub mod schema;
 pub mod vtab;
 
@@ -9,6 +10,7 @@ use sqlite_loadable::prelude::*;
 use sqlite_loadable::{api, define_scalar_function, Error, Result};
 
 fn init_fs_meta(db: *mut sqlite3) -> Result<()> {
+    property_api::register(db)?;
     define_scalar_function(
         db,
         "fs_meta_capabilities",
@@ -16,7 +18,7 @@ fn init_fs_meta(db: *mut sqlite3) -> Result<()> {
         |context, _| {
             api::result_text(
                 context,
-                "[\"storage-keys\",\"metadata-rollback\",\"database-relative-uris\"]",
+                "[\"storage-keys\",\"metadata-rollback\",\"database-relative-uris\",\"metadata-api\"]",
             )
         },
         FunctionFlags::UTF8 | FunctionFlags::DETERMINISTIC,

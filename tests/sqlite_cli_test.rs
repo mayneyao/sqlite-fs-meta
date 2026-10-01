@@ -101,6 +101,37 @@ fn relative_roots_follow_database_moves_and_decode_quoted_paths() {
 }
 
 #[test]
+fn namespace_properties_preserve_json_and_interoperate_with_virtual_tables() {
+    let temp = tempdir().unwrap();
+    let file = temp.path().join("note.txt");
+    fs::write(&file, "content").unwrap();
+    let file = sql_string(&file.to_string_lossy());
+    let root = sql_string(&temp.path().to_string_lossy());
+    let sql = format!(
+        r#"
+SELECT fs_meta_read({file}, 'space.eidos.test');
+SELECT json_extract(fs_meta_patch({file}, 'space.eidos.test', '{{"rating":4,"unknown":{{"nested":true}},"old":1}}', '[]'), '$.rating');
+CREATE VIRTUAL TABLE files USING fs_meta(root={root}, namespace='space.eidos.test', fields='rating INTEGER');
+SELECT rating FROM files WHERE _id='note.txt';
+UPDATE files SET rating=5 WHERE _id='note.txt';
+SELECT json_extract(fs_meta_patch({file}, 'space.eidos.test', '{{"nullable":null}}', '["old"]'), '$.rating');
+SELECT json_extract(fs_meta_read({file}, 'space.eidos.test'), '$.unknown.nested');
+SELECT json_type(fs_meta_read({file}, 'space.eidos.test'), '$.nullable');
+SELECT json_type(fs_meta_read({file}, 'space.eidos.test'), '$.old') IS NULL;
+SELECT fs_meta_read({file}, 'space.eidos.other');
+"#
+    );
+    assert_eq!(
+        run_sqlite(temp.path(), Path::new(":memory:"), &sql),
+        "{}\n4\n4\n5\n1\nnull\n1\n{}"
+    );
+    assert_eq!(
+        fs::read_to_string(temp.path().join("note.txt")).unwrap(),
+        "content"
+    );
+}
+
+#[test]
 fn test_sqlite_fs_meta_e2e() {
     let temp = tempdir().unwrap();
     let root = temp.path();

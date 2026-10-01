@@ -13,6 +13,17 @@ A lightweight, zero-sync cross-platform **SQLite Virtual Table extension** that 
 
 ## 1. Quick Start
 
+### Whole-namespace properties
+
+`fs_meta_read(path, namespace)` returns the complete JSON object stored on a regular file; an absent namespace returns `{}`. `fs_meta_patch(path, namespace, set_json, remove_json)` merges an object of values, removes the named keys, preserves other keys and returns the resulting object. JSON null is a stored value. These functions do not require a virtual table and expose properties beyond its declared columns.
+
+```sql
+SELECT fs_meta_read('/absolute/note.txt', 'space.eidos.meta');
+SELECT fs_meta_patch('/absolute/note.txt', 'space.eidos.meta', '{"rating":4,"tags":["review"]}', '["obsolete"]');
+```
+
+Namespaces use ASCII letters, digits, `.`, `_` and `-`, up to 255 bytes. JSON envelopes are bounded to 1 MiB, subject to the filesystem's smaller native limits. Corrupt envelopes, non-regular files and symbolic links are rejected; Unix writes also reject files with multiple hard links. Hosts must independently validate directory scope. Operations use native xattr on macOS/Linux and ADS on Windows; no command-line `attr` package is used. Calls within one loaded extension are serialized. These scalar writes take effect immediately and are not rolled back by SQL transactions; callers coordinating multiple processes must serialize their writers. Functions are direct-only and cannot run from triggers or views. `fs_meta_capabilities()` includes `metadata-api` when these functions are available.
+
 ### Build the extension
 ```bash
 cargo build --release
