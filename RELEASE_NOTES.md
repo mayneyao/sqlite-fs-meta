@@ -6,6 +6,7 @@
 - Query directories, including empty folders, alongside regular files in virtual tables. Use `is_dir = 1` to select folders, then update or clear their properties with the same SQL operations and transaction/savepoint rollback as files.
 - Use `fs_meta_read` and `fs_meta_patch` on directories, including the virtual table's root. Directory properties belong to the folder itself and are not inherited by its children.
 - Discover directory support through the new `directory-properties` capability.
+- Directory scans read fresh filesystem metadata so Windows folder modification times match point lookups.
 
 ## Compatibility and deletion
 

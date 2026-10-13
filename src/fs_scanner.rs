@@ -91,7 +91,9 @@ pub fn scan_directory(root: &Path, ignore_patterns: &[String]) -> Vec<FileInfo> 
         if entry.path() == root {
             continue;
         }
-        let metadata = match entry.metadata() {
+        // WalkDir caches Windows enumeration metadata, which can lag behind
+        // directory writes. Use fresh no-follow stats, as point lookups do.
+        let metadata = match entry.path().symlink_metadata() {
             Ok(m) => m,
             Err(_) => continue,
         };
