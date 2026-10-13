@@ -18,7 +18,7 @@ fn init_fs_meta(db: *mut sqlite3) -> Result<()> {
         |context, _| {
             api::result_text(
                 context,
-                "[\"storage-keys\",\"metadata-rollback\",\"database-relative-uris\",\"metadata-api\"]",
+                "[\"storage-keys\",\"metadata-rollback\",\"database-relative-uris\",\"metadata-api\",\"directory-properties\"]",
             )
         },
         FunctionFlags::UTF8 | FunctionFlags::DETERMINISTIC,

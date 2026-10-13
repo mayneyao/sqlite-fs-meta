@@ -555,14 +555,20 @@ unsafe extern "C" fn vtab_update(
             Ok(s) => s,
             Err(_) => return SQLITE_ERROR as c_int,
         };
-        if lookup_file(&vtab.config.root, rel_path).is_none() {
+        let Some(info) = lookup_file(&vtab.config.root, rel_path) else {
             return SQLITE_ERROR;
-        }
+        };
         let full_path = vtab.config.root.join(rel_path);
 
         // Opt-in physical deletion retains its non-transactional semantics.
         if vtab.config.delete_physical_file {
-            return if std::fs::remove_file(full_path).is_ok() {
+            // remove_dir only deletes empty directories; never recurse into children.
+            let result = if info.is_dir {
+                std::fs::remove_dir(full_path)
+            } else {
+                std::fs::remove_file(full_path)
+            };
+            return if result.is_ok() {
                 SQLITE_OK
             } else {
                 SQLITE_ERROR
