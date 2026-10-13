@@ -20,27 +20,12 @@ fn namespace(value: &str) -> Result<()> {
     Ok(())
 }
 fn open(path: &Path, writing: bool) -> Result<File> {
-    let mut options = std::fs::OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.custom_flags(libc::O_NOFOLLOW);
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::OpenOptionsExt;
-        options.share_mode(0x1 | 0x2).custom_flags(0x00200000);
-    }
-    let file = options.open(path).map_err(invalid)?;
-    let metadata = file.metadata().map_err(invalid)?;
-    if !metadata.is_file() {
-        return Err(invalid("Properties require a regular file"));
-    }
+    let file = crate::meta::open_metadata_target(path).map_err(invalid)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        if writing && metadata.nlink() != 1 {
+        let metadata = file.metadata().map_err(invalid)?;
+        if writing && metadata.is_file() && metadata.nlink() != 1 {
             return Err(invalid("Property writes reject files with multiple links"));
         }
     }
@@ -150,14 +135,59 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("note.txt");
         std::fs::write(&path, "content").unwrap();
-        crate::meta::restore_envelope(&path, "space.eidos.test", Some(b"corrupt")).unwrap();
-        let file = open(&path, false).unwrap();
-        assert!(read(&file, &path, "space.eidos.test").is_err());
-        assert_eq!(
-            crate::meta::read_envelope(&path, "space.eidos.test").unwrap(),
-            Some(b"corrupt".to_vec())
-        );
+        for path in [path.as_path(), temp.path()] {
+            crate::meta::restore_envelope(path, "space.eidos.test", Some(b"corrupt")).unwrap();
+            let file = open(path, false).unwrap();
+            assert!(read(&file, path, "space.eidos.test").is_err());
+            assert_eq!(
+                crate::meta::read_envelope(path, "space.eidos.test").unwrap(),
+                Some(b"corrupt".to_vec())
+            );
+        }
         assert!(namespace("../escape").is_err());
-        assert!(open(temp.path(), false).is_err());
+    }
+
+    #[test]
+    fn directory_properties_preserve_values_and_remove_keys() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(temp.path().join("child")).unwrap();
+        let path = temp.path();
+        // An ordinary Unix directory has multiple links, especially when it has
+        // children. That must not trigger the regular-file hardlink protection.
+        let file = open(path, true).unwrap();
+        let ns = "space.eidos.test";
+        assert!(read(&file, path, ns).unwrap().is_empty());
+        let mut values = HashMap::from([
+            ("color".into(), serde_json::json!("blue")),
+            ("details".into(), serde_json::json!({"keep": true})),
+            ("nullable".into(), Value::Null),
+        ]);
+        write(&file, path, ns, &values).unwrap();
+        assert_eq!(read(&file, path, ns).unwrap(), values);
+        values.insert("color".into(), serde_json::json!("green"));
+        values.remove("nullable");
+        write(&file, path, ns, &values).unwrap();
+        assert_eq!(read(&file, path, ns).unwrap(), values);
+        assert!(path.join("child").is_dir());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn directories_accept_writes_but_file_hardlinks_and_symlinks_do_not() {
+        let temp = tempfile::tempdir().unwrap();
+        let directory = temp.path().join("directory");
+        let link = temp.path().join("directory-link");
+        std::fs::create_dir(&directory).unwrap();
+        std::os::unix::fs::symlink(&directory, &link).unwrap();
+        assert!(open(&directory, true).is_ok());
+        assert!(open(&link, false).is_err());
+        assert!(open(&link, true).is_err());
+
+        let file = temp.path().join("file.txt");
+        let hardlink = temp.path().join("file-link.txt");
+        std::fs::write(&file, "content").unwrap();
+        std::fs::hard_link(&file, &hardlink).unwrap();
+        assert!(open(&file, false).is_ok());
+        assert!(open(&file, true).is_err());
     }
 }

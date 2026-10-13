@@ -49,10 +49,29 @@ fn should_ignore(name: &str, ignore_patterns: &[String]) -> bool {
     false
 }
 
-/// Scans the root directory recursively, returning all valid files.
+fn is_supported_entry(metadata: &std::fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        // Do not expose junctions or other reparse points as ordinary directories.
+        if metadata.file_attributes() & 0x400 != 0 {
+            return false;
+        }
+    }
+    metadata.is_file() || metadata.is_dir()
+}
+
+/// Scans descendants of root, returning regular files and directories.
 pub fn scan_directory(root: &Path, ignore_patterns: &[String]) -> Vec<FileInfo> {
+    // Strip trailing separators and `.` before inspecting the final entry, so
+    // lstat does not resolve a directory symlink due to the path spelling.
+    let normalized_root = root.components().collect::<std::path::PathBuf>();
+    let root = normalized_root.as_path();
     let mut results = Vec::new();
-    if !root.is_dir() {
+    let Ok(root_metadata) = root.symlink_metadata() else {
+        return results;
+    };
+    if !root_metadata.is_dir() || !is_supported_entry(&root_metadata) {
         return results;
     }
 
@@ -65,20 +84,21 @@ pub fn scan_directory(root: &Path, ignore_patterns: &[String]) -> Vec<FileInfo> 
             }
             let name = entry.file_name().to_string_lossy();
             !should_ignore(&name, ignore_patterns)
+                && entry.metadata().is_ok_and(|m| is_supported_entry(&m))
         });
 
     for entry in walker.filter_map(Result::ok) {
         if entry.path() == root {
             continue;
         }
-        let metadata = match entry.metadata() {
+        // WalkDir caches Windows enumeration metadata, which can lag behind
+        // directory writes. Use fresh no-follow stats, as point lookups do.
+        let metadata = match entry.path().symlink_metadata() {
             Ok(m) => m,
             Err(_) => continue,
         };
 
-        let is_dir = metadata.is_dir();
-        // Skip directories in list (unless desired), or list them
-        if !metadata.is_file() {
+        if !is_supported_entry(&metadata) {
             continue;
         }
 
@@ -87,66 +107,56 @@ pub fn scan_directory(root: &Path, ignore_patterns: &[String]) -> Vec<FileInfo> 
             Err(_) => continue,
         };
         let rel_path = to_posix_path(rel);
-        let filename = entry.file_name().to_string_lossy().to_string();
-        let extension = entry
-            .path()
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-
-        let size = metadata.len();
-        let created_at_iso = metadata.created().ok().map(|time| {
-            let dt: DateTime<Utc> = time.into();
-            dt.to_rfc3339()
-        });
-        let mtime_iso = metadata
-            .modified()
-            .ok()
-            .map(|t| {
-                let dt: DateTime<Utc> = t.into();
-                dt.to_rfc3339()
-            })
-            .unwrap_or_default();
-
-        results.push(FileInfo {
-            rel_path,
-            filename,
-            extension,
-            size,
-            created_at_iso,
-            mtime_iso,
-            is_dir,
-        });
+        if let Some(info) = entry_info(entry.path(), rel_path, &metadata) {
+            results.push(info);
+        }
     }
 
     results
 }
 
-/// Looks up a single file under root by relative path safely.
+/// Looks up a single descendant file or directory by relative path safely.
 pub fn lookup_file(root: &Path, rel_path: &str) -> Option<FileInfo> {
-    if !is_safe_rel_path(rel_path) {
+    let normalized_root = root.components().collect::<std::path::PathBuf>();
+    let root = normalized_root.as_path();
+    if !is_safe_rel_path(rel_path)
+        || !Path::new(rel_path)
+            .components()
+            .any(|part| matches!(part, std::path::Component::Normal(_)))
+    {
+        return None;
+    }
+    let root_metadata = root.symlink_metadata().ok()?;
+    if !root_metadata.is_dir() || !is_supported_entry(&root_metadata) {
         return None;
     }
     let target = root.join(rel_path);
     let mut current = root.to_path_buf();
     for part in Path::new(rel_path).components() {
         current.push(part);
-        if current.symlink_metadata().ok()?.file_type().is_symlink() {
+        if !is_supported_entry(&current.symlink_metadata().ok()?) {
             return None;
         }
     }
     let metadata = target.symlink_metadata().ok()?;
-    if !metadata.is_file() {
+    if !is_supported_entry(&metadata) {
         return None;
     }
 
-    let filename = target.file_name()?.to_string_lossy().to_string();
-    let extension = target
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
+    entry_info(&target, rel_path.to_string(), &metadata)
+}
+
+fn entry_info(path: &Path, rel_path: String, metadata: &std::fs::Metadata) -> Option<FileInfo> {
+    let is_dir = metadata.is_dir();
+    let filename = path.file_name()?.to_string_lossy().to_string();
+    let extension = if is_dir {
+        String::new()
+    } else {
+        path.extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase()
+    };
     let size = metadata.len();
     let created_at_iso = metadata.created().ok().map(|time| {
         let dt: DateTime<Utc> = time.into();
@@ -162,13 +172,13 @@ pub fn lookup_file(root: &Path, rel_path: &str) -> Option<FileInfo> {
         .unwrap_or_default();
 
     Some(FileInfo {
-        rel_path: rel_path.to_string(),
+        rel_path,
         filename,
         extension,
         size,
         created_at_iso,
         mtime_iso,
-        is_dir: false,
+        is_dir,
     })
 }
 
@@ -179,6 +189,70 @@ mod tests {
     use std::collections::HashMap;
     use std::fs::{File, FileTimes};
     use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn directories_and_files_have_consistent_scan_and_lookup_stats() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("photos.png");
+        std::fs::create_dir(&directory).unwrap();
+        std::fs::write(directory.join("cover.JPG"), b"image").unwrap();
+        std::fs::create_dir(root.path().join("empty")).unwrap();
+
+        let scan = scan_directory(root.path(), &[]);
+        assert_eq!(scan.len(), 3);
+        for path in ["photos.png", "photos.png/cover.JPG", "empty"] {
+            let scanned = scan.iter().find(|info| info.rel_path == path).unwrap();
+            let lookup = lookup_file(root.path(), path).unwrap();
+            let metadata = root.path().join(path).metadata().unwrap();
+            assert_eq!(scanned.is_dir, metadata.is_dir());
+            assert_eq!(scanned.is_dir, lookup.is_dir);
+            assert_eq!(scanned.extension, lookup.extension);
+            assert_eq!(scanned.size, metadata.len());
+            assert_eq!(scanned.size, lookup.size);
+            assert_eq!(scanned.created_at_iso, lookup.created_at_iso);
+            assert_eq!(scanned.mtime_iso, lookup.mtime_iso);
+            if metadata.is_dir() {
+                assert!(scanned.extension.is_empty());
+            } else {
+                assert_eq!(scanned.extension, "jpg");
+            }
+        }
+        for path in ["", ".", "./", "../", "photos.png/..", "missing"] {
+            assert!(lookup_file(root.path(), path).is_none(), "{path}");
+        }
+    }
+
+    #[test]
+    fn ignored_directories_and_their_descendants_are_not_scanned() {
+        let root = tempfile::tempdir().unwrap();
+        for name in [".hidden", "ignored", "visible"] {
+            std::fs::create_dir(root.path().join(name)).unwrap();
+            std::fs::write(root.path().join(name).join("note.txt"), b"content").unwrap();
+        }
+        let scan = scan_directory(root.path(), &["ignored".into()]);
+        assert_eq!(scan.len(), 2);
+        assert!(scan
+            .iter()
+            .any(|info| info.rel_path == "visible" && info.is_dir));
+        assert!(scan.iter().any(|info| info.rel_path == "visible/note.txt"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn directory_symlinks_are_not_scanned_or_looked_up() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("note.txt"), b"content").unwrap();
+        let link = root.path().join("linked");
+        std::os::unix::fs::symlink(outside.path(), &link).unwrap();
+        assert!(scan_directory(root.path(), &[]).is_empty());
+        assert!(lookup_file(root.path(), "linked").is_none());
+        assert!(lookup_file(root.path(), "linked/note.txt").is_none());
+        for path in [&link, &link.join(""), &link.join(".")] {
+            assert!(scan_directory(path, &[]).is_empty());
+            assert!(lookup_file(path, "note.txt").is_none());
+        }
+    }
 
     #[test]
     fn creation_time_is_independent_of_mtime_and_metadata_edits() {

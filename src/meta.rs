@@ -1,20 +1,49 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::{fs::File, path::Path};
 
-#[cfg(windows)]
-fn hold_metadata_file(path: &Path) -> std::io::Result<std::fs::File> {
-    use std::os::windows::fs::OpenOptionsExt;
-    // ADS writes can create the base file. Open an existing regular file first
-    // and deny deletion until the stream operation finishes.
-    let file = std::fs::OpenOptions::new()
-        .read(true)
-        .share_mode(0x1 | 0x2) // FILE_SHARE_READ | FILE_SHARE_WRITE
-        .custom_flags(0x00200000) // FILE_FLAG_OPEN_REPARSE_POINT
-        .open(path)?;
-    if !file.metadata()?.is_file() {
+/// Opens an existing regular file or directory without following a final link.
+/// On Windows, retain the handle throughout ADS operations to deny deletion of
+/// the base entry; creating a stream must never recreate a missing base file.
+pub(crate) fn open_metadata_target(path: &Path) -> std::io::Result<File> {
+    // Trailing separators and `/.` must not let a directory link become an
+    // intermediate component that bypasses the no-follow open flags.
+    let target = path.components().as_path();
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options
+            .share_mode(0x1 | 0x2) // FILE_SHARE_READ | FILE_SHARE_WRITE
+            .custom_flags(0x02000000 | 0x00200000); // BACKUP_SEMANTICS | OPEN_REPARSE_POINT
+    }
+    let file = options.open(target)?;
+    let metadata = file.metadata()?;
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        if metadata.file_attributes() & 0x400 != 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Metadata rejects reparse points",
+            ));
+        }
+    }
+    if !metadata.is_file() && !metadata.is_dir() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
-            "Metadata requires an existing regular file",
+            "Metadata requires an existing regular file or directory",
+        ));
+    }
+    if target.as_os_str() != path.as_os_str() && !metadata.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "A trailing directory separator requires a directory",
         ));
     }
     Ok(file)
@@ -29,16 +58,28 @@ fn attribute_name(namespace: &str) -> std::borrow::Cow<'_, str> {
     namespace.into()
 }
 
+#[cfg(windows)]
+fn stream_path(path: &Path, namespace: &str) -> std::io::Result<std::path::PathBuf> {
+    // Canonicalization removes trailing separators from ordinary directories
+    // and retains the root separator required for a volume-root stream.
+    let mut path = std::fs::canonicalize(path)?.into_os_string();
+    path.push(":");
+    path.push(namespace);
+    Ok(path.into())
+}
+
 /// Preserve the exact envelope for transaction rollback, including absence.
 pub fn read_envelope(path: &Path, namespace: &str) -> std::io::Result<Option<Vec<u8>>> {
     #[cfg(unix)]
     {
-        xattr::get(path, attribute_name(namespace).as_ref())
+        use xattr::FileExt;
+        let file = open_metadata_target(path)?;
+        file.get_xattr(attribute_name(namespace).as_ref())
     }
     #[cfg(windows)]
     {
-        let _file = hold_metadata_file(path)?;
-        match std::fs::read(format!("{}:{}", path.display(), namespace)) {
+        let _file = open_metadata_target(path)?;
+        match std::fs::read(stream_path(path, namespace)?) {
             Ok(bytes) => Ok(Some(bytes)),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(error),
@@ -57,12 +98,14 @@ pub fn restore_envelope(path: &Path, namespace: &str, bytes: Option<&[u8]>) -> s
     };
     #[cfg(unix)]
     {
-        xattr::set(path, attribute_name(namespace).as_ref(), bytes)
+        use xattr::FileExt;
+        let file = open_metadata_target(path)?;
+        file.set_xattr(attribute_name(namespace).as_ref(), bytes)
     }
     #[cfg(windows)]
     {
-        let _file = hold_metadata_file(path)?;
-        std::fs::write(format!("{}:{}", path.display(), namespace), bytes)
+        let _file = open_metadata_target(path)?;
+        std::fs::write(stream_path(path, namespace)?, bytes)
     }
     #[cfg(not(any(unix, windows)))]
     {
@@ -83,7 +126,7 @@ pub fn read_metadata(
     }
 }
 
-/// Writes the metadata envelope (key-value JSON) to the specified file.
+/// Writes the metadata envelope (key-value JSON) to a regular file or directory.
 pub fn write_metadata(
     path: &Path,
     namespace: &str,
@@ -94,14 +137,15 @@ pub fn write_metadata(
 
     #[cfg(unix)]
     {
-        xattr::set(path, attribute_name(namespace).as_ref(), &bytes)
+        use xattr::FileExt;
+        let file = open_metadata_target(path)?;
+        file.set_xattr(attribute_name(namespace).as_ref(), &bytes)
     }
 
     #[cfg(windows)]
     {
-        let _file = hold_metadata_file(path)?;
-        let ads_path = format!("{}:{}", path.display(), namespace);
-        std::fs::write(&ads_path, &bytes)
+        let _file = open_metadata_target(path)?;
+        std::fs::write(stream_path(path, namespace)?, &bytes)
     }
 
     #[cfg(not(any(unix, windows)))]
@@ -114,11 +158,13 @@ pub fn write_metadata(
     }
 }
 
-/// Clears the metadata envelope from the specified file.
+/// Clears the metadata envelope from a regular file or directory.
 pub fn clear_metadata(path: &Path, namespace: &str) -> std::io::Result<()> {
     #[cfg(unix)]
     {
-        match xattr::remove(path, attribute_name(namespace).as_ref()) {
+        use xattr::FileExt;
+        let file = open_metadata_target(path)?;
+        match file.remove_xattr(attribute_name(namespace).as_ref()) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             #[cfg(target_os = "macos")]
@@ -131,8 +177,8 @@ pub fn clear_metadata(path: &Path, namespace: &str) -> std::io::Result<()> {
 
     #[cfg(windows)]
     {
-        let ads_path = format!("{}:{}", path.display(), namespace);
-        match std::fs::remove_file(&ads_path) {
+        let _file = open_metadata_target(path)?;
+        match std::fs::remove_file(stream_path(path, namespace)?) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
             Err(e) => Err(e),
@@ -177,5 +223,79 @@ mod tests {
         assert!(read_metadata(&file, namespace).is_err());
         restore_envelope(&file, namespace, None).unwrap();
         assert_eq!(read_envelope(&file, namespace).unwrap(), None);
+    }
+
+    #[test]
+    fn directory_envelopes_restore_and_clear_without_changing_contents() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("folder");
+        std::fs::create_dir(&directory).unwrap();
+        let child = directory.join("child.txt");
+        std::fs::write(&child, "unchanged").unwrap();
+        let namespace = "space.eidos.test";
+        for path in [root.path(), directory.as_path()] {
+            assert_eq!(read_envelope(path, namespace).unwrap(), None);
+            let original = b"{ \"rating\" : 4 }";
+            restore_envelope(path, namespace, Some(original)).unwrap();
+            assert_eq!(read_metadata(path, namespace).unwrap()["rating"], 4);
+            assert_eq!(
+                read_envelope(path, namespace).unwrap(),
+                Some(original.to_vec())
+            );
+
+            let metadata = HashMap::from([("color".into(), serde_json::json!("green"))]);
+            write_metadata(path, namespace, &metadata).unwrap();
+            assert_eq!(read_metadata(path, namespace).unwrap(), metadata);
+            restore_envelope(path, namespace, Some(b"invalid JSON")).unwrap();
+            assert!(read_metadata(path, namespace).is_err());
+            assert_eq!(
+                read_envelope(path, namespace).unwrap(),
+                Some(b"invalid JSON".to_vec())
+            );
+            restore_envelope(path, namespace, None).unwrap();
+            assert_eq!(read_envelope(path, namespace).unwrap(), None);
+            clear_metadata(path, namespace).unwrap();
+            assert!(path.is_dir());
+        }
+        assert_eq!(std::fs::read_to_string(child).unwrap(), "unchanged");
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn metadata_operations_reject_directory_symlinks() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("target");
+        let link = root.path().join("link");
+        std::fs::create_dir(&directory).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&directory, &link).unwrap();
+        #[cfg(windows)]
+        if let Err(error) = std::os::windows::fs::symlink_dir(&directory, &link) {
+            if error.kind() == std::io::ErrorKind::PermissionDenied {
+                return;
+            }
+            panic!("Could not create directory symlink: {error}");
+        }
+        let namespace = "space.eidos.test";
+        restore_envelope(&directory, namespace, Some(b"{\"rating\":4}")).unwrap();
+        for path in [&link, &link.join(""), &link.join(".")] {
+            assert!(read_envelope(path, namespace).is_err());
+            assert!(restore_envelope(path, namespace, Some(b"{}")).is_err());
+            assert!(write_metadata(path, namespace, &HashMap::new()).is_err());
+            assert!(clear_metadata(path, namespace).is_err());
+        }
+        assert_eq!(read_metadata(&directory, namespace).unwrap()["rating"], 4);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn directory_streams_accept_trailing_separators() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("");
+        let namespace = "space.eidos.test";
+        restore_envelope(&path, namespace, Some(b"{\"rating\":4}")).unwrap();
+        assert_eq!(read_metadata(root.path(), namespace).unwrap()["rating"], 4);
+        clear_metadata(&path, namespace).unwrap();
+        assert_eq!(read_envelope(root.path(), namespace).unwrap(), None);
     }
 }

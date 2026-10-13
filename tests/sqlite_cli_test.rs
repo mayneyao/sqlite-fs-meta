@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, Output, Stdio};
 use std::sync::OnceLock;
 use tempfile::tempdir;
 
@@ -37,7 +37,8 @@ fn sql_string(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
 
-fn run_sqlite(cwd: &Path, database: &Path, sql: &str) -> String {
+fn run_sqlite_output(cwd: &Path, database: &Path, sql: &str) -> Output {
+    let library = extension_library();
     let executable = std::env::var_os("SQLITE3_BIN").unwrap_or_else(|| "sqlite3".into());
     let mut child = Command::new(&executable)
         .current_dir(cwd)
@@ -53,18 +54,34 @@ fn run_sqlite(cwd: &Path, database: &Path, sql: &str) -> String {
     writeln!(
         child.stdin.take().unwrap(),
         "SELECT load_extension({}, 'sqlite3_fsmeta_init');\n{sql}",
-        sql_string(&extension_library().to_string_lossy())
+        sql_string(&library.to_string_lossy())
     )
     .expect("Failed to send SQL to SQLite CLI");
-    let output = child
+    child
         .wait_with_output()
-        .expect("Failed to wait for SQLite CLI");
+        .expect("Failed to wait for SQLite CLI")
+}
+
+fn run_sqlite(cwd: &Path, database: &Path, sql: &str) -> String {
+    let output = run_sqlite_output(cwd, database, sql);
     assert!(
         output.status.success(),
-        "SQLite CLI {executable:?} failed (extension loading is required): {}",
+        "SQLite CLI failed (extension loading is required): {}",
         String::from_utf8_lossy(&output.stderr)
     );
     String::from_utf8(output.stdout).unwrap().trim().to_string()
+}
+
+fn assert_sqlite_error(cwd: &Path, sql: &str) {
+    let output = run_sqlite_output(cwd, Path::new(":memory:"), sql);
+    assert!(
+        !output.status.success(),
+        "SQLite unexpectedly accepted SQL: {sql}"
+    );
+    assert!(
+        !output.stderr.is_empty(),
+        "SQLite failed without reporting an error"
+    );
 }
 
 #[test]
@@ -128,6 +145,233 @@ SELECT fs_meta_read({file}, 'space.eidos.other');
     assert_eq!(
         fs::read_to_string(temp.path().join("note.txt")).unwrap(),
         "content"
+    );
+}
+
+#[test]
+fn namespace_properties_support_directories_and_the_scan_root() {
+    let temp = tempdir().unwrap();
+    let directory = temp.path().join("project.v1");
+    fs::create_dir(&directory).unwrap();
+    fs::write(directory.join("note.txt"), "unchanged").unwrap();
+    let directory_sql = sql_string(&directory.to_string_lossy());
+    let root = sql_string(&temp.path().to_string_lossy());
+    let nested_file = sql_string(&directory.join("note.txt").to_string_lossy());
+    let sql = format!(
+        r#"
+SELECT fs_meta_read({directory_sql}, 'space.eidos.test');
+SELECT json_extract(fs_meta_patch({directory_sql}, 'space.eidos.test', '{{"rating":4,"unknown":{{"nested":true}},"obsolete":1}}', '[]'), '$.rating');
+SELECT json_extract(fs_meta_patch({directory_sql}, 'space.eidos.test', '{{"nullable":null}}', '["obsolete"]'), '$.rating');
+SELECT json_extract(fs_meta_read({directory_sql}, 'space.eidos.test'), '$.unknown.nested');
+SELECT json_type(fs_meta_read({directory_sql}, 'space.eidos.test'), '$.nullable');
+SELECT json_type(fs_meta_read({directory_sql}, 'space.eidos.test'), '$.obsolete') IS NULL;
+SELECT fs_meta_read({directory_sql}, 'space.eidos.other');
+SELECT fs_meta_read({nested_file}, 'space.eidos.test');
+SELECT json_extract(fs_meta_patch({root}, 'space.eidos.test', '{{"owner":"root"}}', '[]'), '$.owner');
+SELECT json_extract(fs_meta_read({root}, 'space.eidos.test'), '$.owner');
+CREATE VIRTUAL TABLE entries USING fs_meta(root={root}, namespace='space.eidos.test', fields='rating INTEGER');
+SELECT _id, rating, is_dir FROM entries WHERE _id='project.v1';
+SELECT count(*) FROM entries WHERE _id='';
+SELECT count(*) FROM entries WHERE _id='.';
+SELECT instr(fs_meta_capabilities(), 'directory-properties') > 0;
+"#
+    );
+    assert_eq!(
+        run_sqlite(temp.path(), Path::new(":memory:"), &sql),
+        "{}\n4\n4\n1\nnull\n1\n{}\n{}\nroot\nroot\nproject.v1|4|1\n0\n0\n1"
+    );
+    assert_eq!(
+        fs::read_to_string(directory.join("note.txt")).unwrap(),
+        "unchanged"
+    );
+}
+
+#[test]
+fn directories_are_queryable_and_metadata_changes_roll_back() {
+    let temp = tempdir().unwrap();
+    let directory = temp.path().join("project.v1");
+    let nested = directory.join("nested");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(directory.join("note.txt"), "unchanged").unwrap();
+    fs::write(nested.join("proof.pdf"), "proof").unwrap();
+    fs::create_dir(temp.path().join(".hidden")).unwrap();
+    fs::create_dir(temp.path().join("target")).unwrap();
+    fs::write(temp.path().join("target/ignored.txt"), "ignored").unwrap();
+    let directory_size = directory.metadata().unwrap().len();
+    let directory_sql = sql_string(&directory.to_string_lossy());
+    let root = sql_string(&temp.path().to_string_lossy());
+    let sql = format!(
+        r#"
+CREATE VIRTUAL TABLE entries USING fs_meta(root={root}, namespace='space.eidos.test', fields='rating INTEGER, status TEXT');
+SELECT id, name, extension, is_dir FROM entries ORDER BY id;
+SELECT count(*) FROM entries WHERE is_dir=0;
+SELECT count(*) FROM entries WHERE is_dir=1;
+SELECT id FROM entries WHERE extension='pdf';
+SELECT id, size={directory_size}, file IS NULL, mimetype IS NULL, mime_type IS NULL FROM entries WHERE id='project.v1';
+SELECT _id, is_dir FROM entries WHERE path='project.v1/nested';
+SELECT count(*) FROM entries WHERE id='project.v1' AND is_dir=0;
+SELECT json_extract(fs_meta_patch({directory_sql}, 'space.eidos.test', '{{"rating":1,"unknown":{{"nested":true}},"retired":7}}', '[]'), '$.rating');
+UPDATE entries SET rating=2, status='Active' WHERE _id='project.v1';
+SELECT rating, status FROM entries WHERE id='project.v1';
+SELECT json_extract(fs_meta_read({directory_sql}, 'space.eidos.test'), '$.unknown.nested');
+BEGIN;
+UPDATE entries SET rating=9 WHERE path='project.v1';
+ROLLBACK;
+SELECT rating FROM entries WHERE _id='project.v1';
+BEGIN;
+UPDATE entries SET rating=4 WHERE id='project.v1';
+SAVEPOINT inner;
+UPDATE entries SET rating=5 WHERE id='project.v1';
+DELETE FROM entries WHERE id='project.v1';
+ROLLBACK TO inner;
+RELEASE inner;
+COMMIT;
+SELECT rating, status FROM entries WHERE _id='project.v1';
+BEGIN;
+UPDATE entries SET __fs_meta_remove_key='retired' WHERE id='project.v1';
+SELECT json_type(fs_meta_read({directory_sql}, 'space.eidos.test'), '$.retired') IS NULL;
+ROLLBACK;
+SELECT json_extract(fs_meta_read({directory_sql}, 'space.eidos.test'), '$.retired');
+UPDATE entries SET __fs_meta_remove_key='retired' WHERE id='project.v1';
+UPDATE entries SET rating=NULL WHERE id='project.v1';
+SELECT json_type(fs_meta_read({directory_sql}, 'space.eidos.test'), '$.rating') IS NULL;
+SELECT json_type(fs_meta_read({directory_sql}, 'space.eidos.test'), '$.retired') IS NULL;
+BEGIN;
+DELETE FROM entries WHERE id='project.v1';
+SELECT fs_meta_read({directory_sql}, 'space.eidos.test');
+ROLLBACK;
+SELECT status FROM entries WHERE id='project.v1';
+SELECT json_extract(fs_meta_read({directory_sql}, 'space.eidos.test'), '$.unknown.nested');
+DELETE FROM entries WHERE id='project.v1';
+SELECT fs_meta_read({directory_sql}, 'space.eidos.test');
+SELECT count(*) FROM entries WHERE id='project.v1';
+"#
+    );
+    assert_eq!(
+        run_sqlite(temp.path(), Path::new(":memory:"), &sql),
+        "project.v1|project.v1||1\nproject.v1/nested|nested||1\nproject.v1/nested/proof.pdf|proof.pdf|pdf|0\nproject.v1/note.txt|note.txt|txt|0\n2\n2\nproject.v1/nested/proof.pdf\nproject.v1|1|1|1|1\nproject.v1/nested|1\n0\n1\n2|Active\n1\n2\n4|Active\n1\n7\n1\n1\n{}\nActive\n1\n{}\n1"
+    );
+    assert!(directory.is_dir());
+    assert!(nested.is_dir());
+    assert_eq!(
+        fs::read_to_string(directory.join("note.txt")).unwrap(),
+        "unchanged"
+    );
+    assert_eq!(
+        fs::read_to_string(nested.join("proof.pdf")).unwrap(),
+        "proof"
+    );
+}
+
+#[test]
+fn physical_deletion_removes_only_empty_directories() {
+    let temp = tempdir().unwrap();
+    let empty = temp.path().join("empty");
+    let populated = temp.path().join("populated");
+    fs::create_dir(&empty).unwrap();
+    fs::create_dir(&populated).unwrap();
+    fs::write(populated.join("keep.txt"), "keep").unwrap();
+    let root = sql_string(&temp.path().to_string_lossy());
+    let empty_sql = sql_string(&empty.to_string_lossy());
+    let populated_sql = sql_string(&populated.to_string_lossy());
+    let create = format!(
+        "CREATE VIRTUAL TABLE entries USING fs_meta(root={root}, namespace='space.eidos.test', fields='rating INTEGER', on_delete='delete_file');"
+    );
+    assert_eq!(
+        run_sqlite(
+            temp.path(),
+            Path::new(":memory:"),
+            &format!(
+                "{create} SELECT id, is_dir FROM entries WHERE is_dir=1 ORDER BY id; UPDATE entries SET rating=3 WHERE id='populated'; UPDATE entries SET rating=2 WHERE id='empty'; SELECT json_extract(fs_meta_read({empty_sql}, 'space.eidos.test'), '$.rating');"
+            )
+        ),
+        "empty|1\npopulated|1\n2"
+    );
+    assert_sqlite_error(
+        temp.path(),
+        &format!("{create} DELETE FROM entries WHERE id='populated';"),
+    );
+    assert!(populated.is_dir());
+    assert_eq!(
+        fs::read_to_string(populated.join("keep.txt")).unwrap(),
+        "keep"
+    );
+    assert_eq!(
+        run_sqlite(
+            temp.path(),
+            Path::new(":memory:"),
+            &format!(
+                "{create} SELECT json_extract(fs_meta_read({populated_sql}, 'space.eidos.test'), '$.rating'); BEGIN; DELETE FROM entries WHERE id='empty'; ROLLBACK; SELECT count(*) FROM entries WHERE id='empty';"
+            )
+        ),
+        "3\n0"
+    );
+    assert!(!empty.exists());
+    assert_eq!(
+        fs::read_to_string(populated.join("keep.txt")).unwrap(),
+        "keep"
+    );
+}
+
+#[test]
+fn directory_links_are_not_scanned_or_used_for_properties() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("root");
+    let outside = temp.path().join("outside");
+    fs::create_dir(&root).unwrap();
+    fs::create_dir(&outside).unwrap();
+    fs::write(outside.join("keep.txt"), "keep").unwrap();
+    let link = root.join("linked");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&outside, &link).unwrap();
+    #[cfg(windows)]
+    {
+        // Junctions exercise reparse-point handling without symlink privileges.
+        let output = Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(&link)
+            .arg(&outside)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "Cannot create test junction: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let root_sql = sql_string(&root.to_string_lossy());
+    let link_sql = sql_string(&link.to_string_lossy());
+    assert_eq!(
+        run_sqlite(
+            temp.path(),
+            Path::new(":memory:"),
+            &format!(
+                "CREATE VIRTUAL TABLE entries USING fs_meta(root={root_sql}, fields='rating INTEGER'); SELECT count(*) FROM entries; SELECT count(*) FROM entries WHERE id='linked'; SELECT count(*) FROM entries WHERE path='linked/keep.txt'; UPDATE entries SET rating=9 WHERE id='linked'; DELETE FROM entries WHERE id='linked';"
+            )
+        ),
+        "0\n0\n0"
+    );
+    assert_sqlite_error(
+        temp.path(),
+        &format!("SELECT fs_meta_read({link_sql}, 'space.eidos.test');"),
+    );
+    assert_sqlite_error(
+        temp.path(),
+        &format!("SELECT fs_meta_patch({link_sql}, 'space.eidos.test', '{{\"rating\":9}}', '[]');"),
+    );
+    assert!(link.exists());
+    assert_eq!(
+        fs::read_to_string(outside.join("keep.txt")).unwrap(),
+        "keep"
+    );
+    let outside_sql = sql_string(&outside.to_string_lossy());
+    assert_eq!(
+        run_sqlite(
+            temp.path(),
+            Path::new(":memory:"),
+            &format!("SELECT fs_meta_read({outside_sql}, 'space.eidos.test');")
+        ),
+        "{}"
     );
 }
 
