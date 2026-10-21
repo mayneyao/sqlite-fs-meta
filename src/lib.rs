@@ -1,5 +1,6 @@
 pub mod fs_scanner;
 pub mod meta;
+pub mod properties;
 pub mod property_api;
 pub mod schema;
 pub mod vtab;

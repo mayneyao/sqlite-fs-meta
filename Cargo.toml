@@ -1,13 +1,19 @@
 [package]
 name = "sqlite-fs-meta"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
+description = "Treat your filesystem as a database: query and update files with SQLite"
 
 [lib]
 name = "fs_meta"
 crate-type = ["cdylib", "rlib"]
 
+[[bin]]
+name = "xmeta"
+path = "src/bin/xmeta/main.rs"
+
 [dependencies]
+clap = { version = "4.5", features = ["derive"] }
 sqlite-loadable = "0.0.6-alpha.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

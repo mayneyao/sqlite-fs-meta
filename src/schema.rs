@@ -40,7 +40,7 @@ pub struct VTabConfig {
 impl VTabConfig {
     pub fn parse(raw_args: &[String]) -> Result<Self, String> {
         let mut root: Option<PathBuf> = None;
-        let mut namespace = "space.eidos.meta".to_string();
+        let mut namespace = crate::properties::DEFAULT_NAMESPACE.to_string();
         let mut ignore_patterns = vec![
             "node_modules".to_string(),
             "target".to_string(),

@@ -50,7 +50,7 @@ pub(crate) fn open_metadata_target(path: &Path) -> std::io::Result<File> {
 }
 
 #[cfg(unix)]
-fn attribute_name(namespace: &str) -> std::borrow::Cow<'_, str> {
+pub(crate) fn attribute_name(namespace: &str) -> std::borrow::Cow<'_, str> {
     #[cfg(target_os = "linux")]
     if !namespace.starts_with("user.") {
         return format!("user.{namespace}").into();
@@ -59,7 +59,7 @@ fn attribute_name(namespace: &str) -> std::borrow::Cow<'_, str> {
 }
 
 #[cfg(windows)]
-fn stream_path(path: &Path, namespace: &str) -> std::io::Result<std::path::PathBuf> {
+pub(crate) fn stream_path(path: &Path, namespace: &str) -> std::io::Result<std::path::PathBuf> {
     // Canonicalization removes trailing separators from ordinary directories
     // and retains the root separator required for a volume-root stream.
     let mut path = std::fs::canonicalize(path)?.into_os_string();

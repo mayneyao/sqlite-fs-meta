@@ -1,3 +1,21 @@
+# sqlite-fs-meta 0.5.0
+
+## `xmeta` CLI
+
+- Add `xmeta`, a native command-line interface for reading and writing namespace properties. It does not need SQLite, a database file, or an external `attr`/`xattr` package.
+- Commands: `get`, `set`, `unset`, `patch`, and `clear`.
+- Use `KEY=VALUE` for strings and `KEY:=JSON` for typed values, or pass a JSON object with `patch --from` (including stdin).
+- Support `--dry-run`, `--print`, `--replace`, `--json`, `--text`, and `--raw`.
+- Exit codes distinguish I/O failures, usage errors, missing paths/keys, invalid data, unsupported filesystems, and set/remove conflicts.
+- Configure the default namespace with `xmeta config set`, a project-level `.xmeta.json`, an explicit `--config` file, or `FS_META_NAMESPACE`. Project config is discovered from the target path and takes precedence over the user config.
+- CLI and SQL scalar functions now share `src/properties.rs`, so validation, patch semantics, size limits, symlink/hardlink policy, and error messages stay aligned.
+
+## Compatibility
+
+- `fs_meta_read` and `fs_meta_patch` keep their behavior. Their output uses deterministic object key ordering on subsequent writes.
+- Existing metadata requires no migration. The CLI reads and writes the same xattr/ADS envelopes.
+- The CLI is intentionally single-target in this release; recursive and batch writes remain out of scope.
+
 # sqlite-fs-meta 0.4.0
 
 ## Directory properties

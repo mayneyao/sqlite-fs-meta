@@ -20,26 +20,31 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             binary_name: libfs_meta.dylib
+            cli_name: xmeta
             raw_output: libfs_meta-aarch64-apple-darwin.dylib
             archive_ext: tar.gz
           - os: macos-14
             target: x86_64-apple-darwin
             binary_name: libfs_meta.dylib
+            cli_name: xmeta
             raw_output: libfs_meta-x86_64-apple-darwin.dylib
             archive_ext: tar.gz
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             binary_name: libfs_meta.so
+            cli_name: xmeta
             raw_output: libfs_meta-x86_64-unknown-linux-gnu.so
             archive_ext: tar.gz
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             binary_name: fs_meta.dll
+            cli_name: xmeta.exe
             raw_output: fs_meta-x86_64-pc-windows-msvc.dll
             archive_ext: zip
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             binary_name: libfs_meta.so
+            cli_name: xmeta
             raw_output: libfs_meta-aarch64-unknown-linux-gnu.so
             archive_ext: tar.gz
 
@@ -91,6 +96,29 @@ jobs:
             fi
           else
             tar -czf "dist/${archive_base}.tar.gz" -C staging .
+          fi
+
+          # Package the native CLI separately so extension downloads stay unchanged.
+          cli_src="target/${{ matrix.target }}/release/${{ matrix.cli_name }}"
+          if [[ "${{ matrix.cli_name }}" == *.exe ]]; then
+            cp "$cli_src" "dist/xmeta-${{ matrix.target }}.exe"
+          else
+            cp "$cli_src" "dist/xmeta-${{ matrix.target }}"
+          fi
+
+          mkdir -p staging-cli
+          cp "$cli_src" staging-cli/
+          cli_archive_base="xmeta-${tag}-${{ matrix.target }}"
+          if [[ "${{ matrix.archive_ext }}" == "zip" ]]; then
+            if command -v 7z >/dev/null 2>&1; then
+              (cd staging-cli && 7z a "../dist/${cli_archive_base}.zip" .)
+            elif command -v zip >/dev/null 2>&1; then
+              (cd staging-cli && zip -r "../dist/${cli_archive_base}.zip" .)
+            else
+              tar -czf "dist/${cli_archive_base}.tar.gz" -C staging-cli .
+            fi
+          else
+            tar -czf "dist/${cli_archive_base}.tar.gz" -C staging-cli .
           fi
 
       - name: Upload artifacts
