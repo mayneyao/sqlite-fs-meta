@@ -71,8 +71,12 @@ Files and directories below `root` are rows. The root itself has no row; use
 
 ### Use the CLI
 
-`xmeta` is built at `target/release/xmeta`; run `cargo install --path .` to put it
-on your `PATH`.
+Download the `xmeta-v0.5.0-<target>` archive for your platform from
+[GitHub Releases](https://github.com/mayneyao/sqlite-fs-meta/releases/latest),
+extract it, and place `xmeta` (`xmeta.exe` on Windows) on your `PATH`. Checksums
+are provided in `SHA256SUMS`.
+
+To install from this source checkout, run `cargo install --path . --locked`.
 
 ```bash
 # KEY=VALUE stores a string; KEY:=JSON stores parsed JSON.
@@ -89,6 +93,9 @@ printf '%s' '{"owner":"team"}' | xmeta patch ./project --from -
 
 `xmeta` does not need SQLite or a database file. See the
 [CLI reference](docs/cli.md) for all commands, options, and exit codes.
+
+For visual file metadata management, use Eidos. `xmeta` stays focused on simple
+property reads and writes; it has no embedded UI or application runtime.
 
 ### Set a default namespace
 

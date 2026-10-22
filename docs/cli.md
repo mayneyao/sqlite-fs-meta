@@ -4,6 +4,15 @@
 does not require SQLite or a database file; it writes the same JSON envelopes as
 `fs_meta_patch`.
 
+Use Eidos for visual file metadata management. `xmeta` provides single-target
+property reads and writes without an embedded UI or application runtime.
+
+Prebuilt binaries for macOS (Apple Silicon and Intel), Linux (ARM64 and x86-64),
+and Windows (x86-64) are available on
+[GitHub Releases](https://github.com/mayneyao/sqlite-fs-meta/releases/latest).
+Download the `xmeta-<version>-<target>` archive, verify it against `SHA256SUMS`,
+extract it, and place `xmeta` (`xmeta.exe` on Windows) on your `PATH`.
+
 ```bash
 cargo build --release
 # macOS/Linux: target/release/xmeta

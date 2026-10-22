@@ -69,6 +69,15 @@ fn write_file(path: &Path, content: &str) {
     fs::write(path, content).expect("failed to write test file");
 }
 
+fn assert_same_path(actual: &str, expected: &Path) {
+    let actual = Path::new(actual);
+    assert!(actual.is_absolute(), "path is not absolute: {actual:?}");
+    assert_eq!(
+        fs::canonicalize(actual).unwrap(),
+        fs::canonicalize(expected).unwrap()
+    );
+}
+
 #[test]
 fn set_and_get_roundtrip() {
     let temp = tempdir().unwrap();
@@ -597,13 +606,9 @@ fn project_config_is_discovered_from_the_target_path() {
     assert_ok(&report);
     let report = stdout_json(&report);
     assert_eq!(report["source"], "project");
-    assert_eq!(
-        report["source_path"],
-        fs::canonicalize(&space)
-            .unwrap()
-            .join(".xmeta.json")
-            .to_string_lossy()
-            .as_ref()
+    assert_same_path(
+        report["source_path"].as_str().unwrap(),
+        &space.join(".xmeta.json"),
     );
 }
 
@@ -727,12 +732,9 @@ fn config_project_target_preserves_unknown_keys() {
 
     let path = run(cwd, &["config", "path", "--project"]);
     assert_ok(&path);
-    assert_eq!(
-        String::from_utf8(path.stdout).unwrap(),
-        format!(
-            "{}\n",
-            fs::canonicalize(cwd).unwrap().join(".xmeta.json").display()
-        )
+    assert_same_path(
+        String::from_utf8(path.stdout).unwrap().trim_end(),
+        &cwd.join(".xmeta.json"),
     );
 
     assert_ok(&run(cwd, &["config", "unset", "--project"]));
@@ -750,7 +752,7 @@ fn config_path_and_user_target_are_stable() {
 
     let path = run(cwd, &["config", "path"]);
     assert_ok(&path);
-    let expected_path = cwd.join(".test-config/xmeta/config.json");
+    let expected_path = cwd.join(".test-config").join("xmeta").join("config.json");
     assert_eq!(
         String::from_utf8(path.stdout).unwrap(),
         format!("{}\n", expected_path.display())
@@ -771,12 +773,9 @@ fn config_path_and_user_target_are_stable() {
 
     let project = run(cwd, &["config", "path", "--project"]);
     assert_ok(&project);
-    assert_eq!(
-        String::from_utf8(project.stdout).unwrap(),
-        format!(
-            "{}\n",
-            fs::canonicalize(cwd).unwrap().join(".xmeta.json").display()
-        )
+    assert_same_path(
+        String::from_utf8(project.stdout).unwrap().trim_end(),
+        &cwd.join(".xmeta.json"),
     );
 
     assert_ok(&run(cwd, &["config", "unset", "--project"]));
