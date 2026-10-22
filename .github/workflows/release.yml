@@ -64,6 +64,7 @@ jobs:
         run: |
           cargo clippy --all-targets --locked -- -D warnings
           cargo test --lib --locked
+          cargo test --test cli_test --locked
 
       - name: Package artifacts
         shell: bash
