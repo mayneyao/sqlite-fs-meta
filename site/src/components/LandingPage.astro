@@ -35,6 +35,16 @@ const t = messages[locale];
       </div>
       <dl class="model-details">{t.model.details.map((detail) => <div><dt>{detail.title}</dt><dd>{detail.text}</dd></div>)}</dl>
     </section>
+    <section class="section container gui" aria-labelledby="gui-title">
+      <div>
+        <p class="label section-label">{t.gui.label}</p>
+        <h2 id="gui-title">{t.gui.title}</h2>
+      </div>
+      <div class="gui-details">
+        <p class="section-description">{t.gui.description} <code>space.eidos.meta</code>{t.gui.detail}</p>
+        <a class="text-link" href={t.gui.href}>{t.gui.action} <span aria-hidden="true">↗</span></a>
+      </div>
+    </section>
   </main>
   <Footer locale={locale} />
 </BaseLayout>
@@ -59,6 +69,10 @@ const t = messages[locale];
   .model-details > div:first-child { padding-top: 0; }
   .model-details dt { font-size: 1.0625rem; font-weight: 500; }
   .model-details dd { margin-top: 0.5rem; max-width: 54ch; color: var(--muted); font-size: 0.9375rem; line-height: 1.8; }
-  @media (min-width: 880px) { .model { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5rem; } }
+  .gui { display: grid; gap: 1.5rem; padding-block: clamp(3rem, 5vw, 4rem); }
+  .gui h2 { font-size: clamp(1.75rem, 3vw, 2.25rem); }
+  .gui code { overflow-wrap: anywhere; }
+  .gui .text-link { margin-top: 1rem; }
+  @media (min-width: 880px) { .model, .gui { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5rem; } }
   @media (max-width: 560px) { .hero-description { font-size: 1rem; } .hero-demo { margin-top: 2rem; } }
 </style>

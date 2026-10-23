@@ -56,6 +56,14 @@ const en = {
       },
     ],
   },
+  gui: {
+    label: "GUI / Eidos Spark",
+    title: "A graphical interface, too.",
+    description: "Eidos Spark and xmeta share the default namespace",
+    detail: ". Manage the same file properties in the terminal and the GUI.",
+    action: "Explore Eidos Spark",
+    href: "https://eidos.space/spark#file-metadata",
+  },
   install: {
     platforms: "Installation platform",
     commandLabel: (platform: string) => `Install xmeta on ${platform}`,
@@ -118,6 +126,14 @@ const zh: typeof en = {
         text: "CLI 和 SQL 扩展读写同一份 JSON 数据，无需维护额外索引。",
       },
     ],
+  },
+  gui: {
+    label: "GUI / Eidos Spark",
+    title: "用图形界面管理文件属性。",
+    description: "Eidos Spark 与 xmeta 默认共用 namespace",
+    detail: "，在终端和图形界面管理同一份文件属性。",
+    action: "了解 Eidos Spark",
+    href: "https://eidos.space/zh/spark#file-metadata",
   },
   install: {
     platforms: "安装平台",

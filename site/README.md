@@ -96,6 +96,11 @@ platform choices, command, and copy button. It detects the browser platform
 initially and remembers an explicit selection for the session, including when
 changing the page language.
 
+The final section links to Eidos Spark's file metadata GUI, localized for English
+and Chinese. It explains that Spark and xmeta share the default
+`space.eidos.meta` namespace for file properties. This does not imply automatic
+synchronization of their schema or view configuration.
+
 ## CLI installers
 
 macOS and Linux users can install with:
