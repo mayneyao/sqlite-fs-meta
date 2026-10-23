@@ -1,61 +1,59 @@
-export const demoCommands = [
-  "xmeta set notes/launch.md \\\n  status=Active rating:=5 --print",
-  'xmeta schema set ./notes \\\n  "rating INTEGER, status TEXT"',
-  'xmeta query ./notes \\\n  "SELECT id, rating, status FROM files\n   WHERE is_dir = 0 AND rating >= 4\n   ORDER BY rating DESC"',
-];
-
-export const demoFiles = ["launch.md", "design.md", "reading.md", "archive.md"];
-export const demoRows = [
-  { name: "launch.md", rating: 5, status: "Active" },
-  { name: "reading.md", rating: 5, status: "Active" },
-  { name: "design.md", rating: 4, status: "Draft" },
+export const demoScenes = [
+  {
+    command: "ls notes",
+    output: "draft.md  ideas.md  plan.md  readme.md",
+  },
+  {
+    command: "xmeta set notes/plan.md status=Active rating:=5 --print",
+    output: '{\n  "rating": 5,\n  "status": "Active"\n}',
+  },
+  {
+    command: 'xmeta schema set notes "rating INTEGER, status TEXT" --json',
+    output: '{"fields":[{"name":"rating","type":"INTEGER"},{"name":"status","type":"TEXT"}],"version":1}',
+  },
+  {
+    command: 'xmeta query notes "SELECT id, rating, status FROM files WHERE is_dir = 0 AND rating >= 4 ORDER BY rating DESC"',
+    output: "id\trating\tstatus\nplan.md\t5\tActive\n1 row(s)",
+  },
 ];
 
 export const demoMessages = {
   en: {
     label: "See how it works",
     sample: "Product demo",
-    files: "Files",
-    fileCount: "4 files",
-    stored: "Stored on the file",
-    steps: ["Write properties", "Declare fields", "Query files"],
+    steps: ["List files", "Write properties", "Declare fields", "Query files"],
     captions: [
-      "Attach typed properties to a file, right from the shell.",
-      "Save field definitions on the folder itself, ready for the next query.",
-      "Query with xmeta. SQLite and the extension are already built in.",
+      "Start with the files you already have.",
+      "Add your own typed properties, right from the shell.",
+      "Save field definitions on the folder itself.",
+      "Filter and sort your files with SQL. SQLite is built in.",
     ],
-    saved: "Properties saved to notes/launch.md",
-    created: "Saved to the folder's space.eidos.meta.schema attribute.",
-    result: "3 rows",
-    results: "Example SQL query results",
+    transcript: "Example terminal session",
+    command: "Example command",
+    output: "Command output",
     pause: "Pause demo",
     play: "Play demo",
-    replay: "Replay demo",
-    sequence: "Demo scenes",
-    command: "Example command",
+    replay: "Replay from ls",
+    sequence: "Demo steps",
     data: "Illustrative commands and results",
   },
   zh: {
     label: "看看它如何工作",
     sample: "产品演示",
-    files: "文件",
-    fileCount: "4 个文件",
-    stored: "属性随文件保存",
-    steps: ["写入属性", "声明字段", "查询文件"],
+    steps: ["查看文件", "写入属性", "声明字段", "查询文件"],
     captions: [
-      "用一条命令，为文件写入有类型的属性。",
-      "字段定义保存在文件夹自身，下次查询时自动读取。",
-      "直接用 xmeta 查询，SQLite 和扩展已内置。",
+      "从已有文件开始。",
+      "在命令行中，为文件添加自定义属性。",
+      "字段定义保存在文件夹自身。",
+      "用 SQL 筛选、排序文件。SQLite 已内置。",
     ],
-    saved: "属性已保存到 notes/launch.md",
-    created: "已保存到文件夹的 space.eidos.meta.schema 扩展属性。",
-    result: "3 行结果",
-    results: "SQL 查询结果示例",
+    transcript: "命令行会话示例",
+    command: "命令示例",
+    output: "命令输出",
     pause: "暂停演示",
     play: "播放演示",
-    replay: "重新播放",
+    replay: "从 ls 重新播放",
     sequence: "演示步骤",
-    command: "命令示例",
     data: "命令与结果均为示意",
   },
 };

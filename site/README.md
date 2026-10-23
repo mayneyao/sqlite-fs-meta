@@ -72,11 +72,11 @@ source reference.
 
 ## Product demonstration
 
-The Hero tells a three-scene CLI story: attach typed properties with xmeta,
-save the folder's fields with schema set, then filter and sort with query. A
-scripted terminal, folder tree, property labels, and result table move together.
-Visitors can switch scenes, pause, and replay. Commands and results are curated
-examples; the demonstration does not execute input or access local files.
+The Hero shows one terminal session: list existing files with `ls`, attach typed
+properties with `xmeta set`, save folder fields with `schema set`, then filter
+and sort with `query`. Commands and plain-text output accumulate in the same
+scrolling terminal. Visitors can skip to a command, pause, and replay. Commands
+and results are curated examples; the demo does not execute input or access files.
 
 Playback starts only when the demo is visible, pauses when the page is hidden,
 and respects reduced motion. The first scene is readable without JavaScript.

@@ -2,11 +2,11 @@
   <rect width="1200" height="630" fill="#f8f7f3"/>
   <g fill="#26241e"><path d="M48 32h28v5H48zm0 10h28v5H48zm0 10h16v5H48zm21 0h7v5h-7z"/>
     <text x="90" y="54" font-family="Helvetica,Arial,sans-serif" font-size="23" font-weight="600" letter-spacing="-0.5">xmeta</text>
-    <text x="600" y="245" text-anchor="middle" font-family="Georgia,serif" font-size="78" letter-spacing="-3">File metadata,</text>
-    <text x="600" y="336" text-anchor="middle" font-family="Georgia,serif" font-size="78" letter-spacing="-3">from the terminal.</text>
+    <text x="600" y="245" text-anchor="middle" font-family="Georgia,serif" font-size="64" letter-spacing="-2">Custom file properties.</text>
+    <text x="600" y="336" text-anchor="middle" font-family="Georgia,serif" font-size="64" letter-spacing="-2">Manage files like a database.</text>
   </g>
   <path d="M0 84h1200" stroke="#e4e1d7"/>
-  <path d="M300 352h600" stroke="#4a3fa3" stroke-width="3"/>
+  <path d="M220 352h760" stroke="#4a3fa3" stroke-width="3"/>
   <text x="600" y="148" text-anchor="middle" font-family="monospace" font-size="13" letter-spacing="3" fill="#4a3fa3">XMETA / NATIVE FILE METADATA CLI</text>
   <text x="600" y="400" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="22" fill="#57544a">Read, write, and query. Keep metadata on the files.</text>
   <rect x="160" y="462" width="880" height="95" rx="5" fill="#201e19"/>

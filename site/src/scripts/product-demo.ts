@@ -1,6 +1,7 @@
 document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => {
   const tabs = [...root.querySelectorAll<HTMLButtonElement>("[data-demo-step]")];
-  const panels = [...root.querySelectorAll<HTMLElement>("[data-demo-panel]")];
+  const panels = [...root.querySelectorAll<HTMLElement>("[data-demo-block]")];
+  const viewport = root.querySelector<HTMLElement>("[data-demo-viewport]")!;
   const captions = [...root.querySelectorAll<HTMLElement>("[data-demo-caption]")];
   const toggle = root.querySelector<HTMLButtonElement>("[data-demo-toggle]")!;
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -10,10 +11,12 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
   let timer: number | undefined;
   let frame: number | undefined;
   let progress: Animation | undefined;
-  const duration = 7500;
+  const durations = [2400, 4200, 4200, 7000];
+  const scrollToLatest = () => { viewport.scrollTop = viewport.scrollHeight; };
 
   const finishTyping = () => {
     window.cancelAnimationFrame(frame ?? 0);
+    root.dataset.typing = "false";
     panels.forEach((panel) => {
       const command = panel.querySelector<HTMLElement>("[data-demo-command]")!;
       command.textContent = command.dataset.source ?? "";
@@ -33,6 +36,7 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
     root.querySelector<SVGElement>("[data-pause-icon]")!.style.display = playing ? "" : "none";
     root.querySelector("[data-pause-icon]")!.removeAttribute("hidden");
     if (!active) return;
+    const duration = durations[scene];
     if (!reducedMotion.matches)
       progress = tabs[scene]
         .querySelector<HTMLElement>(".step-progress")!
@@ -48,28 +52,25 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
     scene = index;
     root.dataset.scene = String(index);
     tabs.forEach((tab, i) => {
-      tab.setAttribute("aria-selected", String(i === index));
+      if (i === index) tab.setAttribute("aria-current", "step");
+      else tab.removeAttribute("aria-current");
       tab.tabIndex = i === index ? 0 : -1;
     });
     panels.forEach((panel, i) => {
-      panel.hidden = i !== index;
+      panel.hidden = i > index;
     });
     captions.forEach((caption, i) => {
       caption.hidden = i !== index;
     });
-    root
-      .querySelectorAll<HTMLElement>("[data-demo-file]")
-      .forEach((file, i) =>
-        file.classList.toggle("is-selected", index === 2 ? i < 3 : index === 0 && i === 0),
-      );
     const panel = panels[index];
     if (animate && !reducedMotion.matches) {
       const command = panel.querySelector<HTMLElement>("[data-demo-command]")!;
       const source = command.dataset.source ?? "";
       const started = performance.now();
-      const typingDuration = Math.min(1500, source.length * 14);
+      const typingDuration = Math.min(1100, source.length * 14);
       command.textContent = "";
       command.dataset.typing = "true";
+      root.dataset.typing = "true";
       panel.dataset.complete = "false";
       const type = (now: number) => {
         const count = Math.min(
@@ -81,10 +82,13 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
         else {
           command.removeAttribute("data-typing");
           panel.dataset.complete = "true";
+          root.dataset.typing = "false";
         }
+        scrollToLatest();
       };
       frame = window.requestAnimationFrame(type);
     }
+    scrollToLatest();
     schedule();
   }
 
@@ -109,7 +113,12 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
   });
   toggle.addEventListener("click", () => {
     playing = !playing;
-    if (!playing) finishTyping();
+    if (!playing) { finishTyping(); scrollToLatest(); }
+    schedule();
+  });
+  viewport.addEventListener("pointerdown", () => {
+    playing = false;
+    finishTyping();
     schedule();
   });
   root.querySelector<HTMLButtonElement>("[data-demo-replay]")!.addEventListener("click", () => {

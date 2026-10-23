@@ -7,7 +7,7 @@ export function localePath(locale: Locale, base = "/") {
 const en = {
   lang: "en",
   ogLocale: "en_US",
-  title: "xmeta — File metadata, from the terminal.",
+  title: "xmeta — Custom file properties. Manage files like a database.",
   description:
     "Read, write, and query file metadata with xmeta. Folder schemas, built-in SQLite, and native xattr / ADS storage for macOS, Linux, and Windows.",
   skip: "Skip to content",
@@ -28,10 +28,10 @@ const en = {
   },
   hero: {
     eyebrow: "xmeta / native file metadata CLI",
-    title: ["File metadata,", "from the terminal."],
+    title: ["Custom file properties.", "Manage files like a database."],
     description: [
-      "Read, write, and query file metadata with ",
-      ". SQLite is built in. Your files stay the source of truth.",
+      "Add fields, update properties, and query files with ",
+      ". Metadata stays with your files. SQLite is built in.",
     ],
     install: "Install xmeta",
     docs: "Read the docs",
@@ -76,7 +76,7 @@ const en = {
 const zh: typeof en = {
   lang: "zh-CN",
   ogLocale: "zh_CN",
-  title: "xmeta — 在命令行读写与查询文件元数据。",
+  title: "xmeta — 自定文件属性，用数据库的方式管理文件",
   description:
     "用 xmeta 读写文件属性、配置文件夹 schema、运行 SQL 查询。内置 SQLite，适用于 macOS、Linux 和 Windows。",
   skip: "跳转到正文",
@@ -97,8 +97,8 @@ const zh: typeof en = {
   },
   hero: {
     eyebrow: "xmeta / 原生文件元数据 CLI",
-    title: ["文件元数据，", "从命令行开始。"],
-    description: ["用 ", " 读写文件属性、配置字段、运行 SQL 查询。SQLite 已内置，安装即可使用。"],
+    title: ["自定文件属性，", "用数据库的方式管理文件"],
+    description: ["用 ", " 配置字段、读写属性、运行 SQL 查询。元数据随文件保存，SQLite 已内置。"],
     install: "安装 xmeta",
     docs: "阅读文档",
   },

@@ -1,38 +1,30 @@
 ---
 import type { Locale } from '../data/i18n';
-import { demoCommands, demoFiles, demoRows, demoMessages } from '../data/demo';
+import { demoScenes, demoMessages } from '../data/demo';
 interface Props { locale: Locale; }
 const { locale } = Astro.props;
 const t = demoMessages[locale];
+const commands = ['ls', 'set', 'schema', 'query'];
 ---
 <section class="product-demo" id="demo" data-product-demo data-scene="0" data-play={t.play} data-pause={t.pause} aria-label={t.label}>
   <div class="demo-heading"><span class="label">{t.label}</span><span>{t.sample}</span></div>
   <div class="demo-window">
-    <div class="demo-titlebar"><span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="mono">~/my-files</span><span class="demo-titlebar-note">xmeta</span></div>
-    <div class="demo-workspace">
-      <aside class="demo-sidebar" aria-label={t.files}>
-        <div class="tree-title"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.5 5.5h5l1.5 2h8.5v9h-15zM2.5 5.5v-2h5l1.5 2h8.5v2" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" /></svg><span>notes</span><span aria-hidden="true">⌄</span></div>
-        <ul class="demo-tree">{demoFiles.map((name, index) => <li data-demo-file={index} class:list={{ 'is-selected': index === 0 }}><svg width="14" height="16" viewBox="0 0 16 18" fill="none" aria-hidden="true"><path d="M3 1.5h6l4 4v11H3zM9 1.5v4h4" stroke="currentColor" stroke-linejoin="round" /></svg><span>{name}</span><span class="file-indicator" aria-hidden="true"></span></li>)}</ul>
-        <div class="file-properties"><span class="property-file mono" data-demo-target>launch.md</span><p>{t.stored}</p><dl><div><dt>rating</dt><dd class="property-value" data-property-rating>5</dd></div><div><dt>status</dt><dd class="property-value">Active</dd></div></dl><span class="namespace mono">space.eidos.meta</span></div>
-        <span class="tree-count">{t.fileCount}</span>
-      </aside>
-      <div class="demo-terminal">
-        {demoCommands.map((command, index) => <div id={`demo-scene-${index}`} class="demo-scene" data-demo-panel={index} role="tabpanel" aria-labelledby={`demo-step-${index}`} hidden={index !== 0}>
-          <div class="terminal-heading"><span>Terminal</span><span class="mono">~/my-files</span></div>
-          <div class="command-line"><span class="prompt-sign" aria-hidden="true">$</span><div class="command-stack"><pre class="command-reserve" aria-hidden="true">{command}</pre><pre aria-label={t.command}><code data-demo-command data-source={command}>{command}</code></pre></div></div>
-          <div class="demo-result" data-demo-result>
-            {index === 0 && <><pre class="json-result"><code><span class="syntax-muted">{'{'}</span>{'\n  '}<span class="syntax-key">"rating"</span>: <span class="syntax-number">5</span>,{'\n  '}<span class="syntax-key">"status"</span>: <span class="syntax-string">"Active"</span>{'\n'}<span class="syntax-muted">{'}'}</span></code></pre><p class="terminal-response"><span aria-hidden="true">✓</span> {t.saved}</p></>}
-            {index === 1 && <><div class="schema-preview"><span class="mono">files</span><span>id <b>TEXT</b></span><span>rating <b>INTEGER</b></span><span>status <b>TEXT</b></span></div><p class="terminal-response"><span aria-hidden="true">✓</span> {t.created}</p></>}
-            {index === 2 && <><div class="demo-table-scroll" tabindex="0" role="region" aria-label={t.results}><table><thead><tr><th scope="col">id</th><th scope="col">rating</th><th scope="col">status</th></tr></thead><tbody>{demoRows.map((row) => <tr><td>{row.name}</td><td class="rating-cell">{row.rating}</td><td>{row.status}</td></tr>)}</tbody></table></div><span class="result-count">{t.result}</span></>}
-          </div>
-          <span class="terminal-cursor" aria-hidden="true">$ <i></i></span>
-        </div>)}
+    <div class="demo-titlebar">
+      <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="mono">zsh — ~/my-files</span>
+      <div class="playback-buttons">
+        <button type="button" data-demo-toggle aria-label={t.play} title={t.play}><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path data-play-icon d="m6 3 11 7-11 7z" /><path data-pause-icon d="M5 4h3v12H5zm7 0h3v12h-3z" hidden /></svg></button>
+        <button type="button" data-demo-replay aria-label={t.replay} title={t.replay}><svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4.5 6.5a6.5 6.5 0 1 1-1 6M4 2v5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
       </div>
     </div>
-    <div class="demo-controls">
-      <div class="demo-steps" role="tablist" aria-label={t.sequence}>{t.steps.map((label, index) => <button type="button" id={`demo-step-${index}`} role="tab" aria-selected={index === 0 ? 'true' : 'false'} aria-controls={`demo-scene-${index}`} aria-describedby="demo-caption" tabindex={index === 0 ? 0 : -1} data-demo-step={index}><span class="step-number mono">0{index + 1}</span><span>{label}</span><span class="step-progress" aria-hidden="true"></span></button>)}</div>
-      <div class="playback-buttons"><button type="button" data-demo-toggle aria-label={t.play} title={t.play}><svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path data-play-icon d="m6 3 11 7-11 7z" /><path data-pause-icon d="M5 4h3v12H5zm7 0h3v12h-3z" hidden /></svg></button><button type="button" data-demo-replay aria-label={t.replay} title={t.replay}><svg width="17" height="17" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4.5 6.5a6.5 6.5 0 1 1-1 6M4 2v5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg></button></div>
+    <div class="demo-terminal" data-demo-viewport tabindex="0" role="region" aria-label={t.transcript}>
+      {demoScenes.map((scene, index) => <div class="demo-block" id={`demo-scene-${index}`} data-demo-block={index} aria-labelledby={`demo-step-${index}`} hidden={index !== 0}>
+        <div class="command-line"><span class="prompt-sign" aria-hidden="true">$</span><div class="command-stack"><pre class="command-reserve" aria-hidden="true">{scene.command}</pre><pre aria-label={t.command}><code data-demo-command data-source={scene.command}>{scene.command}</code></pre></div></div>
+        <pre class="demo-result" data-demo-result aria-label={t.output}>{scene.output}</pre>
+      </div>)}
+      <span class="terminal-cursor" aria-hidden="true">$ <i></i></span>
     </div>
+    <nav class="demo-steps" aria-label={t.sequence}>{commands.map((command, index) => <button type="button" id={`demo-step-${index}`} aria-label={t.steps[index]} aria-current={index === 0 ? 'step' : undefined} aria-controls={`demo-scene-${index}`} tabindex={index === 0 ? 0 : -1} data-demo-step={index}><span class="mono">{command}</span><span class="step-progress" aria-hidden="true"></span></button>)}</nav>
   </div>
   <p class="demo-caption" id="demo-caption">{t.captions.map((caption, index) => <span data-demo-caption={index} hidden={index !== 0}>{caption}</span>)}</p>
   <span class="sr-only">{t.data}</span>
@@ -43,107 +35,43 @@ const t = demoMessages[locale];
   .demo-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
   .demo-heading .label { color: var(--accent); font-size: 0.625rem; }
   .demo-heading > span:last-child { color: var(--faint); font-size: 0.6875rem; }
-  .demo-window { overflow: hidden; border: 1px solid var(--rule-strong); border-radius: 6px; background: var(--surface); }
-  .demo-titlebar { min-height: 42px; padding: 0.5rem 1rem; display: flex; align-items: center; gap: 1rem; border-bottom: 1px solid var(--rule); background: var(--wash); font-size: 0.6875rem; color: var(--muted); }
+  .demo-window { overflow: hidden; border: 1px solid var(--terminal-line); border-radius: 6px; background: var(--terminal); color: var(--inverse); }
+  .demo-titlebar { display: flex; align-items: center; gap: 1rem; min-height: 48px; padding-inline: 1.25rem 0.5rem; border-bottom: 1px solid var(--terminal-line); color: var(--inverse-muted); font-size: 0.6875rem; }
   .window-dots { display: flex; gap: 5px; }
-  .window-dots i { width: 7px; height: 7px; border: 1px solid var(--rule-strong); border-radius: 50%; }
-  .demo-titlebar-note { margin-left: auto; color: var(--faint); font-size: 0.625rem; }
-  .demo-workspace { display: grid; grid-template-columns: 200px minmax(0, 1fr); }
-  .demo-sidebar { position: relative; display: flex; flex-direction: column; padding: 1.5rem 0.75rem 1rem; min-width: 0; }
-  .tree-title { display: flex; align-items: center; gap: 0.5rem; padding-inline: 0.5rem; font-size: 0.8125rem; }
-  .tree-title > span:last-child { margin-left: auto; color: var(--faint); }
-  .demo-tree { list-style: none; margin: 0.8rem 0 0; padding: 0; }
-  .demo-tree li { display: flex; gap: 0.5rem; align-items: center; min-height: 35px; margin-block: 2px; padding: 0.4rem 0.65rem; color: var(--muted); font-size: 0.75rem; border-radius: 3px; transition: background 180ms, color 180ms; }
-  .demo-tree li svg { flex: none; opacity: 0.6; }
-  .demo-tree li.is-selected { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); color: var(--accent); }
-  .file-indicator { margin-left: auto; width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0; }
-  [data-scene='2'] .demo-tree li:not(:last-child) .file-indicator { opacity: 1; }
-  [data-scene='2'] .demo-tree li:last-child { opacity: 0.45; }
-  .file-properties { border-top: 1px solid var(--rule); margin: 1.25rem 0.5rem 0; padding-top: 1rem; }
-  .property-file { font-size: 0.625rem; }
-  .file-properties p { font-size: 0.625rem; color: var(--faint); margin-top: 0.25rem; }
-  dl { margin-top: 0.75rem; font-size: 0.6875rem; }
-  dl > div { display: flex; align-items: center; justify-content: space-between; margin-top: 0.4rem; }
-  dt { color: var(--muted); font-family: var(--mono); }
-  dd { color: var(--accent); font-family: var(--mono); }
-  .namespace { display: block; font-size: 0.5625rem; color: var(--faint); margin-top: 1rem; overflow-wrap: anywhere; }
-  .tree-count { color: var(--faint); font-size: 0.625rem; margin: auto 0.5rem 0; padding-top: 1rem; }
-  .demo-terminal { min-width: 0; background: var(--terminal); color: var(--inverse); }
-  .demo-scene { min-height: 390px; padding: 1.1rem 1.75rem 1.25rem; position: relative; }
-  .terminal-heading { display: flex; align-items: center; justify-content: space-between; color: var(--inverse-muted); font-size: 0.625rem; }
-  .terminal-heading > span:first-child { text-transform: uppercase; letter-spacing: 0.12em; }
-  .command-line { display: flex; align-items: start; gap: 0.75rem; margin-top: 1.6rem; }
-  .prompt-sign { color: #b7b0d8; font-family: var(--mono); font-size: 0.8125rem; line-height: 1.85; }
+  .window-dots i { width: 7px; height: 7px; border: 1px solid #777365; border-radius: 50%; }
+  .playback-buttons { display: flex; margin-left: auto; }
+  .playback-buttons button { display: grid; place-items: center; width: 36px; min-height: 44px; border: 0; background: transparent; color: var(--inverse-muted); }
+  .playback-buttons button:hover { color: var(--inverse); }
+  .demo-terminal { height: 26rem; overflow-y: auto; overscroll-behavior-y: contain; padding: 1.5rem 2rem; scrollbar-color: #57544a var(--terminal); }
+  .demo-terminal:focus-visible { outline-offset: -4px; }
+  .demo-block { margin-bottom: 1.4rem; }
+  .command-line { display: flex; align-items: start; gap: 0.75rem; }
+  .prompt-sign { color: #c4bddd; font-family: var(--mono); font-size: 0.8125rem; line-height: 1.85; }
   .command-stack { display: grid; flex: 1; min-width: 0; }
-  pre { grid-area: 1 / 1; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-size: 0.8125rem; line-height: 1.85; }
+  pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8125rem; line-height: 1.85; tab-size: 8; }
+  .command-stack pre { grid-area: 1 / 1; }
   pre code { font-size: inherit; }
   .command-reserve { visibility: hidden; }
   [data-demo-command][data-typing]::after { content: '▍'; color: var(--inverse-muted); }
-  .demo-result { padding-left: 1.55rem; margin-top: 1.15rem; transition: opacity 200ms, transform 200ms; }
-  [data-complete='false'] .demo-result { opacity: 0; transform: translateY(4px); }
-  .json-result { color: var(--inverse-muted); }
-  .syntax-muted { color: #999585; }
-  .syntax-key { color: #c4bddd; }
-  .syntax-number { color: #dbca8d; }
-  .syntax-string { color: #b9c5a4; }
-  .terminal-response { display: flex; gap: 0.6rem; align-items: baseline; margin-top: 1rem; font-size: 0.6875rem; color: var(--inverse-muted); }
-  .terminal-response > span { color: #b9c5a4; }
-  .schema-preview { display: flex; gap: 0.4rem 0.75rem; align-items: center; flex-wrap: wrap; font-family: var(--mono); font-size: 0.625rem; margin-top: 1.5rem; }
-  .schema-preview > span:first-child { color: var(--inverse-muted); margin-right: 0.4rem; }
-  .schema-preview > span:not(:first-child) { border: 1px solid var(--terminal-line); padding: 0.35rem 0.5rem; border-radius: 2px; }
-  .schema-preview b { color: var(--inverse-muted); font-weight: 400; font-size: 0.5625rem; }
-  .demo-table-scroll { overflow-x: auto; margin-top: 1.4rem; }
-  table { width: 100%; border-collapse: collapse; white-space: nowrap; font-family: var(--mono); font-size: 0.75rem; text-align: left; }
-  th, td { border-bottom: 1px solid var(--terminal-line); padding: 0.55rem 0.75rem; }
-  th { color: var(--inverse-muted); font-weight: 400; font-size: 0.6875rem; }
-  th:first-child, td:first-child { padding-left: 0; }
-  .rating-cell { color: #dbca8d; }
-  .result-count { display: block; color: var(--inverse-muted); font-family: var(--mono); font-size: 0.625rem; margin-top: 0.6rem; }
-  .terminal-cursor { display: flex; align-items: center; gap: 0.5rem; position: absolute; bottom: 1.25rem; left: 1.75rem; color: #999585; font-family: var(--mono); font-size: 0.6875rem; }
-  .terminal-cursor i { width: 6px; height: 13px; background: var(--inverse-muted); opacity: 0.7; }
-  .demo-controls { display: flex; border-top: 1px solid var(--rule); }
-  .demo-steps { display: grid; flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 0; }
-  .demo-steps button { display: flex; position: relative; align-items: center; gap: 0.6rem; min-height: 57px; padding: 0.75rem 1rem; border: 0; border-right: 1px solid var(--rule); background: var(--surface); text-align: left; font-size: 0.75rem; color: var(--muted); }
-  .demo-steps button[aria-selected='true'] { color: var(--accent); background: var(--wash); }
-  .step-number { font-size: 0.5625rem; color: var(--faint); }
-  .step-progress { position: absolute; bottom: 0; inset-inline: 0; height: 2px; background: var(--accent); transform: scaleX(0); transform-origin: left; }
-  .playback-buttons { display: flex; align-items: center; padding: 0.2rem 0.5rem; }
-  .playback-buttons button { display: grid; place-items: center; width: 36px; min-height: 40px; border: 0; background: transparent; color: var(--muted); }
-  .playback-buttons button:hover { color: var(--accent); }
+  .demo-result { margin: 0.45rem 0 0 1.55rem; color: var(--inverse-muted); }
+  [data-complete='false'] .demo-result { display: none; }
+  .terminal-cursor { display: flex; align-items: center; gap: 0.75rem; color: #c4bddd; font-family: var(--mono); font-size: 0.8125rem; line-height: 1.85; }
+  .terminal-cursor i { width: 6px; height: 14px; background: var(--inverse-muted); opacity: 0.7; }
+  [data-typing='true'] .terminal-cursor { visibility: hidden; }
+  .demo-steps { display: flex; border-top: 1px solid var(--terminal-line); padding-inline: 1rem; gap: 0.5rem; }
+  .demo-steps button { position: relative; min-height: 44px; padding: 0.5rem 1rem; border: 0; background: transparent; color: var(--inverse-muted); font-size: 0.6875rem; }
+  .demo-steps button[aria-current='step'] { color: var(--inverse); }
+  .step-progress { position: absolute; bottom: 0; inset-inline: 0.5rem; height: 2px; background: #c4bddd; transform: scaleX(0); transform-origin: left; }
+  .demo-window :focus-visible { outline-color: #c4bddd; }
   .demo-caption { min-height: 2.8em; margin-top: 1rem; text-align: center; color: var(--muted); font-size: 0.8125rem; line-height: 1.8; }
-  @media (max-width: 700px) {
-    .demo-workspace { grid-template-columns: 155px minmax(0, 1fr); }
-    .demo-sidebar { padding-inline: 0.4rem; }
-    .demo-scene { padding-inline: 1rem; }
-    .terminal-cursor { left: 1rem; }
-    .demo-steps button { flex-direction: column; align-items: start; justify-content: center; gap: 0.15rem; padding: 0.5rem 0.65rem; font-size: 0.6875rem; }
-    .playback-buttons { padding-inline: 0.2rem; }
-    .playback-buttons button { width: 30px; }
-  }
   @media (max-width: 520px) {
-    .demo-workspace { grid-template-columns: minmax(0, 1fr); }
-    .demo-sidebar { padding: 0.7rem 0.9rem; display: block; }
-    .tree-title { padding-inline: 0; font-size: 0.75rem; }
-    .tree-title > span:last-child { display: none; }
-    .demo-tree { display: flex; flex-wrap: wrap; gap: 0.1rem 0.5rem; margin-top: 0.4rem; }
-    .demo-tree li { min-height: 28px; font-size: 0.6875rem; padding: 0.25rem 0.4rem; }
-    .demo-tree li svg { width: 10px; }
-    .file-indicator { display: none; }
-    .file-properties, .tree-count { display: none; }
-    .demo-scene { min-height: 390px; padding: 0.9rem 1rem 2rem; }
-    pre { font-size: 0.6875rem; line-height: 1.9; }
-    .command-line { gap: 0.5rem; margin-top: 1.25rem; }
-    .prompt-sign { font-size: 0.6875rem; }
-    .demo-result { padding-left: 1.15rem; }
-    .schema-preview { gap: 0.4rem; }
-    .terminal-response { font-size: 0.625rem; }
-    table { font-size: 0.6875rem; }
-    th, td { padding-inline: 0.5rem; }
-    .terminal-cursor { bottom: 1rem; }
-    .demo-steps button { padding-inline: 0.5rem; font-size: 0.625rem; }
-    .playback-buttons { flex-direction: column; padding: 0.25rem; }
-    .playback-buttons button { min-height: 30px; width: 28px; }
+    .demo-titlebar { padding-left: 1rem; gap: 0.75rem; font-size: 0.625rem; }
+    .demo-terminal { height: 27rem; padding: 1.25rem 1rem; }
+    pre, .prompt-sign, .terminal-cursor { font-size: 0.6875rem; line-height: 1.9; }
+    .command-line, .terminal-cursor { gap: 0.5rem; }
+    .demo-result { margin-left: 1.15rem; }
+    .demo-steps { padding-inline: 0.5rem; gap: 0; }
+    .demo-steps button { flex: 1; padding-inline: 0.5rem; }
     .demo-caption { min-height: 3.6em; padding-inline: 0.5rem; font-size: 0.75rem; }
   }
-  @media (prefers-reduced-motion: reduce) { .demo-tree li, .demo-result { transition: none; } }
 </style>
