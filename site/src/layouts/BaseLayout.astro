@@ -14,7 +14,7 @@ const {
 const base = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
 const site = Astro.site ?? new URL('https://fsmeta.eidos.space');
 const canonical = new URL(Astro.url.pathname, site);
-const socialImage = new URL(`${base}og.png`, site);
+const socialImage = new URL(`${base}og.png?v=folder-table`, site);
 const english = new URL(localePath('en', base), site);
 const chinese = new URL(localePath('zh', base), site);
 ---
@@ -26,7 +26,7 @@ const chinese = new URL(localePath('zh', base), site);
     <meta name="description" content={description} />
     <meta name="theme-color" content="#f8f7f3" />
     <meta name="generator" content={Astro.generator} />
-    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg?v=folder-table`} />
     <link rel="canonical" href={canonical} />
     <link rel="describedby" type="text/plain" href={`${base}llms.txt`} />
     <link rel="alternate" hreflang="en" href={english} />

@@ -8,6 +8,10 @@ IBM Plex Sans body text, IBM Plex Mono commands, and restrained violet accents.
 Sans and Serif Latin fonts are vendored from the official site's Fontsource
 5.2.6 assets, with their original licenses in `src/assets/fonts/`.
 
+The folder-table mark lives in `public/logo.svg` and is shared by both language
+headers. The favicon and social image use the same paths. The SVG favicon
+adjusts its foreground for light and dark browser chrome.
+
 ## Languages
 
 English lives at `/` and Simplified Chinese at `/zh/`. Both are rendered as static
@@ -72,12 +76,14 @@ source reference.
 
 ## Product demonstration
 
-The Hero shows one terminal session: list existing files with `ls`, save folder
-fields with `schema set`, attach typed properties with `xmeta set`, then filter
-and sort with `query`. Commands and plain-text output accumulate in the same
-scrolling terminal. Visitors can pause or replay; completed sessions keep their
-output visible. Commands and results are curated examples; the demo does not
-execute input or access files.
+The Hero shows a film and TV library: list movie and episode files with `ls`,
+define genre, watch status, and personal rating with `schema set`, update a movie
+with `xmeta set`, then query highly rated science-fiction picks. Commands and
+plain-text output accumulate in one terminal,
+sized for the complete session without internal scrolling. Its height stays
+stable during playback and adjusts to the screen width. Visitors can pause or
+replay; completed sessions keep their output visible. Commands and results are
+curated examples; the demo does not execute input or access files.
 
 Playback starts only when the demo is visible, pauses when the page is hidden,
 and respects reduced motion. The first scene is readable without JavaScript.

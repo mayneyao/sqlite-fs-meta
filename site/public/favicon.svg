@@ -1,5 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="8" fill="#26241e"/>
-  <path d="M12 14h40v7H12zm0 15h40v7H12zm0 15h23v7H12z" fill="#f8f7f3"/>
-  <path d="M42 44h10v7H42z" fill="#b3a8f2"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" color="#26241e">
+  <title>xmeta</title>
+  <style>@media (prefers-color-scheme: dark) { :root { color: #f8f7f3; --logo-accent: #bcb3ed; } }</style>
+  <path d="M6 12h20l8 8h24v34H6V12Zm8 16v6h8v-6h-8Zm16 0v6h20v-6H30ZM14 40v6h8v-6h-8Zm16 0v6h20v-6H30Z" fill="currentColor" fill-rule="evenodd"/>
+  <path d="M6 12h20l8 8H6v-8Z" fill="var(--logo-accent, #4a3fa3)"/>
 </svg>

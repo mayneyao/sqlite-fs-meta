@@ -9,9 +9,7 @@ const alternate = locale === 'en' ? 'zh' : 'en';
 <header>
   <div class="container nav">
     <a class="brand" href="#top" aria-label={t.nav.home}>
-      <svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true">
-        <path d="M2 4h20v3H2zm0 7h20v3H2zm0 7h11v3H2zm15 0h5v3h-5z" fill="currentColor" />
-      </svg>
+      <img src={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/logo.svg`} width="28" height="28" alt="" aria-hidden="true" />
       <span>xmeta</span>
     </a>
     <a class="version label" href={release}>v{version}</a>

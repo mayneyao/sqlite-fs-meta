@@ -11,7 +11,6 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
   let timer: number | undefined;
   let frame: number | undefined;
   const durations = [2400, 4200, 4200, 7000];
-  const scrollToLatest = () => { viewport.scrollTop = viewport.scrollHeight; };
 
   const finishTyping = () => {
     window.cancelAnimationFrame(frame ?? 0);
@@ -52,6 +51,7 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
     root.dataset.scene = String(index);
     panels.forEach((panel, i) => {
       panel.hidden = i > index;
+      panel.dataset.current = String(i === index);
     });
     captions.forEach((caption, i) => {
       caption.hidden = i !== index;
@@ -78,11 +78,9 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
           panel.dataset.complete = "true";
           root.dataset.typing = "false";
         }
-        scrollToLatest();
       };
       frame = window.requestAnimationFrame(type);
     }
-    scrollToLatest();
     schedule();
   }
 
@@ -93,7 +91,7 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
       return;
     }
     playing = !playing;
-    if (!playing) { finishTyping(); scrollToLatest(); }
+    if (!playing) finishTyping();
     schedule();
   });
   viewport.addEventListener("pointerdown", () => {

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" color="#26241e" role="img" aria-labelledby="folder-table-title folder-table-desc">
+  <title id="folder-table-title">xmeta — Folder table</title>
+  <desc id="folder-table-desc">A folder with transparent key-value rows cut through its surface.</desc>
+  <path d="M6 12h20l8 8h24v34H6V12Zm8 16v6h8v-6h-8Zm16 0v6h20v-6H30ZM14 40v6h8v-6h-8Zm16 0v6h20v-6H30Z" fill="currentColor" fill-rule="evenodd"/>
+  <path d="M6 12h20l8 8H6v-8Z" fill="var(--logo-accent, #4a3fa3)"/>
+</svg>

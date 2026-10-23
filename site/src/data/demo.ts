@@ -1,34 +1,34 @@
 export const demoScenes = [
   {
-    command: "ls notes",
-    output: "draft.md  ideas.md  plan.md  readme.md",
+    command: "ls",
+    output: "Arrival.mkv  Dune.mkv  Her.mkv  Severance.S01E01.mkv",
   },
   {
-    command: 'xmeta schema set notes "rating INTEGER, status TEXT" --json',
-    output: '{"fields":[{"name":"rating","type":"INTEGER"},{"name":"status","type":"TEXT"}],"version":1}',
+    command: 'xmeta schema set . "genre TEXT, status TEXT, rating REAL" --json',
+    output: '{"fields":[{"name":"genre","type":"TEXT"},{"name":"status","type":"TEXT"},{"name":"rating","type":"REAL"}],"version":1}',
   },
   {
-    command: "xmeta set notes/plan.md status=Active rating:=5 --print",
-    output: '{\n  "rating": 5,\n  "status": "Active"\n}',
+    command: "xmeta set Her.mkv genre=Sci-Fi status=Watched rating:=8.5 --print",
+    output: '{\n  "genre": "Sci-Fi",\n  "rating": 8.5,\n  "status": "Watched"\n}',
   },
   {
-    command: 'xmeta query notes "SELECT id, rating, status FROM files WHERE is_dir = 0 AND rating >= 4 ORDER BY rating DESC"',
-    output: "id\trating\tstatus\nplan.md\t5\tActive\n1 row(s)",
+    command: `xmeta query . "SELECT id, status, rating FROM files WHERE is_dir = 0 AND genre = 'Sci-Fi' AND rating >= 8 ORDER BY rating DESC"`,
+    output: "id\tstatus\trating\nHer.mkv\tWatched\t8.5\n1 row(s)",
   },
 ];
 
 export const demoMessages = {
   en: {
-    label: "See how it works",
+    label: "A film and TV library",
     sample: "Product demo",
     steps: ["List files", "Declare fields", "Write properties", "Query files"],
     captions: [
-      "Start with the files you already have.",
-      "Save field definitions on the folder itself.",
-      "Add your own typed properties, right from the shell.",
-      "Filter and sort your files with SQL. SQLite is built in.",
+      "Start with the movies and shows already in your folder.",
+      "Define genre, watch status, and your own rating.",
+      "Mark Her as watched and add a personal rating.",
+      "Find science-fiction picks you rated 8 or higher.",
     ],
-    transcript: "Example terminal session",
+    transcript: "Example film library terminal session",
     command: "Example command",
     output: "Command output",
     pause: "Pause demo",
@@ -37,16 +37,16 @@ export const demoMessages = {
     data: "Illustrative commands and results",
   },
   zh: {
-    label: "看看它如何工作",
+    label: "影视文件管理",
     sample: "产品演示",
     steps: ["查看文件", "声明字段", "写入属性", "查询文件"],
     captions: [
-      "从已有文件开始。",
-      "字段定义保存在文件夹自身。",
-      "在命令行中，为文件添加自定义属性。",
-      "用 SQL 筛选、排序文件。SQLite 已内置。",
+      "从已有的电影和剧集文件开始。",
+      "自定类型、观看状态和评分字段。",
+      "为《她》记录类型、已看状态和个人评分。",
+      "用 SQL 筛出个人评分不低于 8 分的科幻作品。",
     ],
-    transcript: "命令行会话示例",
+    transcript: "影视管理命令行示例",
     command: "命令示例",
     output: "命令输出",
     pause: "暂停演示",

@@ -10,18 +10,18 @@ const t = demoMessages[locale];
   <div class="demo-window">
     <div class="demo-titlebar">
       <span class="window-dots" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="mono">zsh — ~/my-files</span>
+      <span class="mono">zsh — ~/Movies</span>
       <div class="playback-buttons">
         <button type="button" data-demo-toggle aria-label={t.play} title={t.play}><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path data-play-icon d="m6 3 11 7-11 7z" /><path data-pause-icon d="M5 4h3v12H5zm7 0h3v12h-3z" hidden /></svg></button>
         <button type="button" data-demo-replay aria-label={t.replay} title={t.replay}><svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4.5 6.5a6.5 6.5 0 1 1-1 6M4 2v5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg></button>
       </div>
     </div>
-    <div class="demo-terminal" data-demo-viewport tabindex="0" role="region" aria-label={t.transcript}>
-      {demoScenes.map((scene, index) => <div class="demo-block" id={`demo-scene-${index}`} data-demo-block={index} role="group" aria-label={t.steps[index]} hidden={index !== 0}>
+    <div class="demo-terminal" data-demo-viewport role="region" aria-label={t.transcript}>
+      {demoScenes.map((scene, index) => <div class="demo-block" id={`demo-scene-${index}`} data-demo-block={index} data-current={index === 0 ? 'true' : undefined} role="group" aria-label={t.steps[index]} hidden={index !== 0}>
         <div class="command-line"><span class="prompt-sign" aria-hidden="true">$</span><div class="command-stack"><pre class="command-reserve" aria-hidden="true">{scene.command}</pre><pre aria-label={t.command}><code data-demo-command data-source={scene.command}>{scene.command}</code></pre></div></div>
         <pre class="demo-result" data-demo-result aria-label={t.output}>{scene.output}</pre>
+        <span class="terminal-cursor" aria-hidden="true">$ <i></i></span>
       </div>)}
-      <span class="terminal-cursor" aria-hidden="true">$ <i></i></span>
     </div>
   </div>
   <p class="demo-caption" id="demo-caption">{t.captions.map((caption, index) => <span data-demo-caption={index} hidden={index !== 0}>{caption}</span>)}</p>
@@ -40,9 +40,10 @@ const t = demoMessages[locale];
   .playback-buttons { display: flex; margin-left: auto; }
   .playback-buttons button { display: grid; place-items: center; width: 36px; min-height: 44px; border: 0; background: transparent; color: var(--inverse-muted); }
   .playback-buttons button:hover { color: var(--inverse); }
-  .demo-terminal { height: 26rem; overflow-y: auto; overscroll-behavior-y: contain; padding: 1.5rem 2rem; scrollbar-color: #57544a var(--terminal); }
-  .demo-terminal:focus-visible { outline-offset: -4px; }
-  .demo-block { margin-bottom: 1.4rem; }
+  .demo-terminal { padding: 1.5rem 2rem; }
+  .demo-block { position: relative; margin-bottom: 1.4rem; }
+  /* Reserve the complete transcript's height before its commands appear. */
+  .demo-block[hidden] { display: block !important; visibility: hidden; }
   .command-line { display: flex; align-items: start; gap: 0.75rem; }
   .prompt-sign { color: #c4bddd; font-family: var(--mono); font-size: 0.8125rem; line-height: 1.85; }
   .command-stack { display: grid; flex: 1; min-width: 0; }
@@ -52,15 +53,16 @@ const t = demoMessages[locale];
   .command-reserve { visibility: hidden; }
   [data-demo-command][data-typing]::after { content: '▍'; color: var(--inverse-muted); }
   .demo-result { margin: 0.45rem 0 0 1.55rem; color: var(--inverse-muted); }
-  [data-complete='false'] .demo-result { display: none; }
-  .terminal-cursor { display: flex; align-items: center; gap: 0.75rem; color: #c4bddd; font-family: var(--mono); font-size: 0.8125rem; line-height: 1.85; }
+  [data-complete='false'] .demo-result { visibility: hidden; }
+  .terminal-cursor { visibility: hidden; position: absolute; top: calc(100% + 0.3rem); display: flex; align-items: center; gap: 0.75rem; color: #c4bddd; font-family: var(--mono); font-size: 0.8125rem; line-height: 1.85; }
+  .demo-block[data-current='true'] .terminal-cursor { visibility: visible; }
   .terminal-cursor i { width: 6px; height: 14px; background: var(--inverse-muted); opacity: 0.7; }
-  [data-typing='true'] .terminal-cursor { visibility: hidden; }
+  .product-demo[data-typing='true'] .terminal-cursor { visibility: hidden; }
   .demo-window :focus-visible { outline-color: #c4bddd; }
   .demo-caption { min-height: 2.8em; margin-top: 1rem; text-align: center; color: var(--muted); font-size: 0.8125rem; line-height: 1.8; }
   @media (max-width: 520px) {
     .demo-titlebar { padding-left: 1rem; gap: 0.75rem; font-size: 0.625rem; }
-    .demo-terminal { height: 27rem; padding: 1.25rem 1rem; }
+    .demo-terminal { padding: 1.25rem 1rem; }
     pre, .prompt-sign, .terminal-cursor { font-size: 0.6875rem; line-height: 1.9; }
     .command-line, .terminal-cursor { gap: 0.5rem; }
     .demo-result { margin-left: 1.15rem; }

@@ -1,6 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <rect width="1200" height="630" fill="#f8f7f3"/>
-  <g fill="#26241e"><path d="M48 32h28v5H48zm0 10h28v5H48zm0 10h16v5H48zm21 0h7v5h-7z"/>
+  <g fill="#26241e">
+    <g id="xmeta-logo" transform="translate(42 24) scale(.625)" color="#26241e">
+      <path d="M6 12h20l8 8h24v34H6V12Zm8 16v6h8v-6h-8Zm16 0v6h20v-6H30ZM14 40v6h8v-6h-8Zm16 0v6h20v-6H30Z" fill="currentColor" fill-rule="evenodd"/>
+      <path d="M6 12h20l8 8H6v-8Z" fill="var(--logo-accent, #4a3fa3)"/>
+    </g>
     <text x="90" y="54" font-family="Helvetica,Arial,sans-serif" font-size="23" font-weight="600" letter-spacing="-0.5">xmeta</text>
     <text x="600" y="245" text-anchor="middle" font-family="Georgia,serif" font-size="64" letter-spacing="-2">Custom file properties.</text>
     <text x="600" y="336" text-anchor="middle" font-family="Georgia,serif" font-size="64" letter-spacing="-2">Manage files like a database.</text>
