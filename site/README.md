@@ -63,8 +63,9 @@ endpoints under `/docs/` are statically generated at build time; the two
 references import the repository's `docs/cli.md` and `docs/extension.md` as raw
 text, so documentation fixes have one source of truth.
 
-The landing page exposes an English or Chinese copyable starter prompt and
-links to these endpoints. HTML declares `rel="describedby"` for discovery;
+The footer links to `llms.txt` and the CLI and SQLite extension references.
+Starter prompts live in the agent documentation. HTML declares
+`rel="describedby"` for discovery;
 Markdown responses do the same via an HTTP Link header. These are readable
 without JavaScript or an application server. Rebuild after editing either
 source reference.

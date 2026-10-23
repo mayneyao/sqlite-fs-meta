@@ -12,6 +12,7 @@ const t = messages[locale];
     <nav aria-label={t.footer.label}>
       <a href={`https://eidos.space${locale === 'zh' ? '/zh' : '/'}`}>Eidos ↗</a>
       <a href={`${docs}/cli.md`}>{t.footer.cliDocs} ↗</a>
+      <a href={`${docs}/extension.md`}>{t.footer.extensionDocs} ↗</a>
       <a href={repository}>{t.footer.source} ↗</a>
       <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/llms.txt`}>llms.txt ↗</a>
       <a href="#top" aria-label={t.footer.top}>↑</a>
