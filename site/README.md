@@ -84,9 +84,10 @@ and respects reduced motion. The first scene is readable without JavaScript.
 No database engine or command interpreter is downloaded. English and Chinese
 demo copy lives in `src/data/demo.ts`.
 
-The Hero installer switches between macOS, Linux, and Windows. It detects the
-browser platform initially and remembers an explicit selection for the session,
-including when changing the page language.
+The Hero installer has two options: macOS / Linux and Windows. It shows only the
+platform choices, command, and copy button. It detects the browser platform
+initially and remembers an explicit selection for the session, including when
+changing the page language.
 
 ## CLI installers
 

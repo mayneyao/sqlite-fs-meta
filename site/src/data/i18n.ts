@@ -60,8 +60,6 @@ const en = {
     platforms: "Installation platform",
     commandLabel: (platform: string) => `Install xmeta on ${platform}`,
     copyLabel: (platform: string) => `Copy ${platform} install command`,
-    unixNote: "Installs to ~/.local/bin. Re-run to update; add the directory to PATH if needed.",
-    windowsNote: "Run in PowerShell. Installs the x86-64 CLI and adds it to your user PATH.",
   },
   footer: {
     truth: "Files are the source of truth.",
@@ -125,8 +123,6 @@ const zh: typeof en = {
     platforms: "安装平台",
     commandLabel: (platform: string) => `在 ${platform} 上安装 xmeta`,
     copyLabel: (platform: string) => `复制 ${platform} 安装命令`,
-    unixNote: "安装到 ~/.local/bin，重复运行即可更新；如有需要，将该目录加入 PATH。",
-    windowsNote: "在 PowerShell 中运行。安装 x86-64 CLI，并加入用户 PATH。",
   },
   footer: {
     truth: "数据，就在文件上。",
