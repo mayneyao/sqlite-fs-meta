@@ -4,24 +4,8 @@ export const demoScenes = [
     output: "Arrival.mkv  Dune.mkv  Her.mkv  Severance.S01E01.mkv",
   },
   {
-    command: 'xmeta schema set . "genre TEXT, status TEXT, rating REAL" --json | jq',
-    output: `{
-  "fields": [
-    {
-      "name": "genre",
-      "type": "TEXT"
-    },
-    {
-      "name": "status",
-      "type": "TEXT"
-    },
-    {
-      "name": "rating",
-      "type": "REAL"
-    }
-  ],
-  "version": 1
-}`,
+    command: `xmeta schema set . "genre TEXT, status TEXT, rating REAL" --json | jq -r '.fields[] | .name + " " + .type'`,
+    output: "genre TEXT\nstatus TEXT\nrating REAL",
   },
   {
     command: "xmeta set Her.mkv genre=Sci-Fi status=Watched rating:=8.5 --print",
