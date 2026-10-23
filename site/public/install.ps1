@@ -31,7 +31,10 @@ try {
   $Lines = @(Get-Content $Checksums | Where-Object { $_ -match ('\s' + [regex]::Escape($Binary) + '$') })
   if ($Lines.Count -ne 1) { throw "SHA256SUMS has no unique entry for $Binary" }
   $Expected = ($Lines[0] -split '\s+')[0].ToLowerInvariant()
-  $Actual = (Get-FileHash -Algorithm SHA256 $Download).Hash.ToLowerInvariant()
+  $Stream = [IO.File]::OpenRead($Download)
+  $Hasher = [Security.Cryptography.SHA256]::Create()
+  try { $Actual = [BitConverter]::ToString($Hasher.ComputeHash($Stream)).Replace('-', '').ToLowerInvariant() }
+  finally { $Stream.Dispose(); $Hasher.Dispose() }
   if ($Actual -ne $Expected) { throw "Checksum mismatch for $Binary" }
   $ActualVersion = & $Download --version
   if ($LASTEXITCODE -ne 0 -or $ActualVersion -ne "xmeta $Version") { throw "Unexpected binary version: $ActualVersion" }
