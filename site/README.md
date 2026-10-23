@@ -102,6 +102,9 @@ File metadata management in Eidos Lite requires a Spark license. Eidos Lite and
 xmeta share the default `space.eidos.meta` namespace for file properties. This
 does not imply automatic synchronization of their schema or view configuration.
 
+The landing page has two external links: GitHub in the header and the Eidos Lite
+feature details above. Documentation links stay on this site.
+
 ## CLI installers
 
 macOS and Linux users can install with:

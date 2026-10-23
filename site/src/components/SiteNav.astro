@@ -1,5 +1,5 @@
 ---
-import { repository, docs, release, version } from '../data/project';
+import { repository, docs, version } from '../data/project';
 import { messages, localePath, type Locale } from '../data/i18n';
 interface Props { locale: Locale; }
 const { locale } = Astro.props;
@@ -12,10 +12,10 @@ const alternate = locale === 'en' ? 'zh' : 'en';
       <img src={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/logo.svg`} width="28" height="28" alt="" aria-hidden="true" />
       <span>xmeta</span>
     </a>
-    <a class="version label" href={release}>v{version}</a>
+    <span class="version label">v{version}</span>
     <nav aria-label={t.nav.label}>
       <a href="#demo">{t.nav.demo}</a>
-      <a href={`${docs}/cli.md`}>{t.nav.docs} <span aria-hidden="true">↗</span></a>
+      <a href={`${docs}/cli.md`}>{t.nav.docs}</a>
       <a href={repository}>GitHub <span aria-hidden="true">↗</span></a>
       <a class="language-switch" href={localePath(alternate, import.meta.env.BASE_URL)}
         lang={messages[alternate].lang} hreflang={messages[alternate].lang}
@@ -36,7 +36,7 @@ const alternate = locale === 'en' ? 'zh' : 'en';
   .version { color: var(--faint); text-decoration: none; padding: 0.75rem 0.25rem; font-size: 0.625rem; letter-spacing: 0; }
   nav { margin-left: auto; display: flex; align-items: center; gap: 1.5rem; }
   nav a { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; color: var(--muted); font-size: 0.875rem; font-weight: 500; text-decoration: none; }
-  nav a:hover, .version:hover { color: var(--accent); }
+  nav a:hover { color: var(--accent); }
   .language-switch { padding-left: 1.25rem; border-left: 1px solid var(--rule); font-size: 0.75rem; font-weight: 400; }
   @media (max-width: 560px) {
     .nav { gap: 0 1rem; padding-block: 0.4rem 0; }

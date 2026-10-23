@@ -74,7 +74,6 @@ const en = {
     label: "Footer",
     cliDocs: "CLI reference",
     extensionDocs: "SQLite extension",
-    source: "Source",
     top: "Back to top",
   },
 };
@@ -145,7 +144,6 @@ const zh: typeof en = {
     label: "页脚导航",
     cliDocs: "CLI 参考文档",
     extensionDocs: "SQLite 扩展",
-    source: "源码",
     top: "返回顶部",
   },
 };

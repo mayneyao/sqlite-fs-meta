@@ -1,5 +1,5 @@
 ---
-import { repository, docs, version } from '../data/project';
+import { docs, version } from '../data/project';
 import { messages, type Locale } from '../data/i18n';
 interface Props { locale: Locale; }
 const { locale } = Astro.props;
@@ -10,11 +10,9 @@ const t = messages[locale];
     <a class="footer-brand" href="#top">xmeta<span class="label">v{version}</span></a>
     <p>{t.footer.truth}</p>
     <nav aria-label={t.footer.label}>
-      <a href={`https://eidos.space${locale === 'zh' ? '/zh' : '/'}`}>Eidos ↗</a>
-      <a href={`${docs}/cli.md`}>{t.footer.cliDocs} ↗</a>
-      <a href={`${docs}/extension.md`}>{t.footer.extensionDocs} ↗</a>
-      <a href={repository}>{t.footer.source} ↗</a>
-      <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/llms.txt`}>llms.txt ↗</a>
+      <a href={`${docs}/cli.md`}>{t.footer.cliDocs}</a>
+      <a href={`${docs}/extension.md`}>{t.footer.extensionDocs}</a>
+      <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/llms.txt`}>llms.txt</a>
       <a href="#top" aria-label={t.footer.top}>↑</a>
     </nav>
   </div>
