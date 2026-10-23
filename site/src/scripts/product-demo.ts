@@ -1,5 +1,4 @@
 document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => {
-  const tabs = [...root.querySelectorAll<HTMLButtonElement>("[data-demo-step]")];
   const panels = [...root.querySelectorAll<HTMLElement>("[data-demo-block]")];
   const viewport = root.querySelector<HTMLElement>("[data-demo-viewport]")!;
   const captions = [...root.querySelectorAll<HTMLElement>("[data-demo-caption]")];
@@ -7,10 +6,10 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let scene = 0;
   let playing = !reducedMotion.matches;
+  let finished = false;
   let visible = false;
   let timer: number | undefined;
   let frame: number | undefined;
-  let progress: Animation | undefined;
   const durations = [2400, 4200, 4200, 7000];
   const scrollToLatest = () => { viewport.scrollTop = viewport.scrollHeight; };
 
@@ -27,35 +26,30 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
 
   function schedule() {
     window.clearTimeout(timer);
-    progress?.cancel();
     const active = playing && visible && !document.hidden;
     root.dataset.playing = String(active);
+    root.dataset.finished = String(finished);
     toggle.setAttribute("aria-label", (playing ? root.dataset.pause : root.dataset.play) ?? "");
     toggle.title = toggle.getAttribute("aria-label") ?? "";
     root.querySelector<SVGElement>("[data-play-icon]")!.style.display = playing ? "none" : "";
     root.querySelector<SVGElement>("[data-pause-icon]")!.style.display = playing ? "" : "none";
     root.querySelector("[data-pause-icon]")!.removeAttribute("hidden");
     if (!active) return;
-    const duration = durations[scene];
-    if (!reducedMotion.matches)
-      progress = tabs[scene]
-        .querySelector<HTMLElement>(".step-progress")!
-        .animate([{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], {
-          duration,
-          fill: "forwards",
-        });
-    timer = window.setTimeout(() => show((scene + 1) % panels.length), duration);
+    timer = window.setTimeout(() => {
+      if (scene < panels.length - 1) show(scene + 1);
+      else {
+        playing = false;
+        finished = true;
+        schedule();
+      }
+    }, durations[scene]);
   }
 
   function show(index: number, animate = true) {
     finishTyping();
+    finished = false;
     scene = index;
     root.dataset.scene = String(index);
-    tabs.forEach((tab, i) => {
-      if (i === index) tab.setAttribute("aria-current", "step");
-      else tab.removeAttribute("aria-current");
-      tab.tabIndex = i === index ? 0 : -1;
-    });
     panels.forEach((panel, i) => {
       panel.hidden = i > index;
     });
@@ -92,26 +86,12 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
     schedule();
   }
 
-  tabs.forEach((tab, index) => {
-    const select = (next: number) => {
-      playing = false;
-      show(next);
-      tabs[next].focus({ preventScroll: true });
-    };
-    tab.addEventListener("click", () => select(index));
-    tab.addEventListener("keydown", (event) => {
-      let next: number | undefined;
-      if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
-      if (event.key === "ArrowLeft") next = (index + tabs.length - 1) % tabs.length;
-      if (event.key === "Home") next = 0;
-      if (event.key === "End") next = tabs.length - 1;
-      if (next !== undefined) {
-        event.preventDefault();
-        select(next);
-      }
-    });
-  });
   toggle.addEventListener("click", () => {
+    if (finished) {
+      playing = true;
+      show(0);
+      return;
+    }
     playing = !playing;
     if (!playing) { finishTyping(); scrollToLatest(); }
     schedule();
@@ -126,7 +106,7 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
     show(0);
   });
   reducedMotion.addEventListener("change", () => {
-    playing = !reducedMotion.matches;
+    playing = !reducedMotion.matches && !finished;
     finishTyping();
     schedule();
   });
@@ -144,7 +124,6 @@ document.querySelectorAll<HTMLElement>("[data-product-demo]").forEach((root) => 
   observer.observe(root);
   window.addEventListener("pagehide", () => {
     window.clearTimeout(timer);
-    progress?.cancel();
     finishTyping();
     observer.disconnect();
   });

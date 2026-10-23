@@ -4,7 +4,6 @@ import { demoScenes, demoMessages } from '../data/demo';
 interface Props { locale: Locale; }
 const { locale } = Astro.props;
 const t = demoMessages[locale];
-const commands = ['ls', 'set', 'schema', 'query'];
 ---
 <section class="product-demo" id="demo" data-product-demo data-scene="0" data-play={t.play} data-pause={t.pause} aria-label={t.label}>
   <div class="demo-heading"><span class="label">{t.label}</span><span>{t.sample}</span></div>
@@ -18,13 +17,12 @@ const commands = ['ls', 'set', 'schema', 'query'];
       </div>
     </div>
     <div class="demo-terminal" data-demo-viewport tabindex="0" role="region" aria-label={t.transcript}>
-      {demoScenes.map((scene, index) => <div class="demo-block" id={`demo-scene-${index}`} data-demo-block={index} aria-labelledby={`demo-step-${index}`} hidden={index !== 0}>
+      {demoScenes.map((scene, index) => <div class="demo-block" id={`demo-scene-${index}`} data-demo-block={index} role="group" aria-label={t.steps[index]} hidden={index !== 0}>
         <div class="command-line"><span class="prompt-sign" aria-hidden="true">$</span><div class="command-stack"><pre class="command-reserve" aria-hidden="true">{scene.command}</pre><pre aria-label={t.command}><code data-demo-command data-source={scene.command}>{scene.command}</code></pre></div></div>
         <pre class="demo-result" data-demo-result aria-label={t.output}>{scene.output}</pre>
       </div>)}
       <span class="terminal-cursor" aria-hidden="true">$ <i></i></span>
     </div>
-    <nav class="demo-steps" aria-label={t.sequence}>{commands.map((command, index) => <button type="button" id={`demo-step-${index}`} aria-label={t.steps[index]} aria-current={index === 0 ? 'step' : undefined} aria-controls={`demo-scene-${index}`} tabindex={index === 0 ? 0 : -1} data-demo-step={index}><span class="mono">{command}</span><span class="step-progress" aria-hidden="true"></span></button>)}</nav>
   </div>
   <p class="demo-caption" id="demo-caption">{t.captions.map((caption, index) => <span data-demo-caption={index} hidden={index !== 0}>{caption}</span>)}</p>
   <span class="sr-only">{t.data}</span>
@@ -58,10 +56,6 @@ const commands = ['ls', 'set', 'schema', 'query'];
   .terminal-cursor { display: flex; align-items: center; gap: 0.75rem; color: #c4bddd; font-family: var(--mono); font-size: 0.8125rem; line-height: 1.85; }
   .terminal-cursor i { width: 6px; height: 14px; background: var(--inverse-muted); opacity: 0.7; }
   [data-typing='true'] .terminal-cursor { visibility: hidden; }
-  .demo-steps { display: flex; border-top: 1px solid var(--terminal-line); padding-inline: 1rem; gap: 0.5rem; }
-  .demo-steps button { position: relative; min-height: 44px; padding: 0.5rem 1rem; border: 0; background: transparent; color: var(--inverse-muted); font-size: 0.6875rem; }
-  .demo-steps button[aria-current='step'] { color: var(--inverse); }
-  .step-progress { position: absolute; bottom: 0; inset-inline: 0.5rem; height: 2px; background: #c4bddd; transform: scaleX(0); transform-origin: left; }
   .demo-window :focus-visible { outline-color: #c4bddd; }
   .demo-caption { min-height: 2.8em; margin-top: 1rem; text-align: center; color: var(--muted); font-size: 0.8125rem; line-height: 1.8; }
   @media (max-width: 520px) {
@@ -70,8 +64,6 @@ const commands = ['ls', 'set', 'schema', 'query'];
     pre, .prompt-sign, .terminal-cursor { font-size: 0.6875rem; line-height: 1.9; }
     .command-line, .terminal-cursor { gap: 0.5rem; }
     .demo-result { margin-left: 1.15rem; }
-    .demo-steps { padding-inline: 0.5rem; gap: 0; }
-    .demo-steps button { flex: 1; padding-inline: 0.5rem; }
     .demo-caption { min-height: 3.6em; padding-inline: 0.5rem; font-size: 0.75rem; }
   }
 </style>

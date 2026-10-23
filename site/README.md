@@ -72,11 +72,12 @@ source reference.
 
 ## Product demonstration
 
-The Hero shows one terminal session: list existing files with `ls`, attach typed
-properties with `xmeta set`, save folder fields with `schema set`, then filter
+The Hero shows one terminal session: list existing files with `ls`, save folder
+fields with `schema set`, attach typed properties with `xmeta set`, then filter
 and sort with `query`. Commands and plain-text output accumulate in the same
-scrolling terminal. Visitors can skip to a command, pause, and replay. Commands
-and results are curated examples; the demo does not execute input or access files.
+scrolling terminal. Visitors can pause or replay; completed sessions keep their
+output visible. Commands and results are curated examples; the demo does not
+execute input or access files.
 
 Playback starts only when the demo is visible, pauses when the page is hidden,
 and respects reduced motion. The first scene is readable without JavaScript.
