@@ -1,0 +1,19 @@
+{
+  "name": "sqlite-fs-meta-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/installers.test.mjs",
+    "dev": "astro dev",
+    "build": "astro build",
+    "deploy": "astro build && pnpm dlx wrangler@4.70.0 deploy",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "astro": "^7.4.1"
+  },
+  "packageManager": "pnpm@11.28.5"
+}

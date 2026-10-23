@@ -34,6 +34,7 @@ pub struct VTabConfig {
     pub namespace: String,
     pub ignore_patterns: Vec<String>,
     pub custom_columns: Vec<ColumnDef>,
+    pub fields_explicit: bool,
     pub delete_physical_file: bool,
 }
 
@@ -48,6 +49,7 @@ impl VTabConfig {
             ".graft".to_string(),
         ];
         let mut custom_columns = Vec::new();
+        let mut fields_explicit = false;
         let mut delete_physical_file = false;
 
         for arg in raw_args {
@@ -76,17 +78,11 @@ impl VTabConfig {
                         ignore_patterns.extend(additional);
                     }
                     "fields" => {
+                        fields_explicit = true;
                         if val.trim_start().starts_with('[') {
-                            #[derive(serde::Deserialize)]
-                            #[serde(deny_unknown_fields)]
-                            struct Field {
-                                name: String,
-                                #[serde(rename = "type")]
-                                data_type: String,
-                                key: Option<String>,
-                            }
-                            let fields: Vec<Field> = serde_json::from_str(&val)
-                                .map_err(|error| format!("Invalid fields JSON: {error}"))?;
+                            let fields: Vec<crate::folder_schema::Field> =
+                                serde_json::from_str(&val)
+                                    .map_err(|error| format!("Invalid fields JSON: {error}"))?;
                             for field in fields {
                                 let data_type = field.data_type.to_uppercase();
                                 if !["TEXT", "INTEGER", "REAL", "BLOB"]
@@ -112,6 +108,9 @@ impl VTabConfig {
                             let parts: Vec<&str> = col_trimmed.split_whitespace().collect();
                             if parts.is_empty() {
                                 continue;
+                            }
+                            if parts.len() > 2 {
+                                return Err(format!("Invalid field declaration: {col_trimmed}"));
                             }
                             let col_name = parts[0].to_string();
                             let col_type = if parts.len() > 1 {
@@ -141,12 +140,14 @@ impl VTabConfig {
         }
 
         let root = root.ok_or_else(|| "Missing required 'root' argument in fs_meta".to_string())?;
+        validate_columns(&custom_columns)?;
 
         Ok(VTabConfig {
             root,
             namespace,
             ignore_patterns,
             custom_columns,
+            fields_explicit,
             delete_physical_file,
         })
     }
@@ -184,6 +185,44 @@ impl VTabConfig {
             cols.join(",\n  ")
         )
     }
+}
+
+/// Validate declarations once for explicit SQL fields and folder schemas alike.
+pub fn validate_columns(columns: &[ColumnDef]) -> Result<(), String> {
+    let reserved = [
+        "_id",
+        "id",
+        "name",
+        "extension",
+        "size",
+        "_created_at",
+        "_updated_at",
+        "mtime",
+        "path",
+        "is_dir",
+        "file",
+        "mimetype",
+        "mime_type",
+        "__fs_meta_remove_key",
+    ];
+    let mut names = std::collections::HashSet::new();
+    for column in columns {
+        if column.name.is_empty()
+            || column.name.contains('\0')
+            || reserved.contains(&column.name.to_ascii_lowercase().as_str())
+            || !names.insert(column.name.to_ascii_lowercase())
+        {
+            return Err(format!(
+                "Invalid, reserved, or duplicate field name: {}",
+                column.name
+            ));
+        }
+        if !["TEXT", "INTEGER", "REAL", "BLOB"].contains(&column.data_type.as_str()) {
+            return Err(format!("Invalid field type: {}", column.data_type));
+        }
+        crate::properties::validate_key(&column.storage_key).map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

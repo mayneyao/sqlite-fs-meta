@@ -29,17 +29,17 @@ Build artifacts:
 
 ### Built-in system columns
 
-| Column | Type | Description |
-| :--- | :--- | :--- |
-| `id` | `TEXT PRIMARY KEY` | POSIX relative path from `root` (e.g. `docs/spec.pdf`) |
-| `name` | `TEXT` | File or directory name |
-| `path` | `TEXT` | Relative path (same as `id`) |
-| `size` | `INTEGER` | Native `stat.st_size`. For a directory, not the total size of its contents. |
-| `mtime` | `TEXT` | ISO 8601 modification timestamp (UTC) |
-| `_created_at` | `TEXT` | Filesystem creation (birth) timestamp in UTC; `NULL` when unavailable. Never falls back to modification time. |
-| `_updated_at` | `TEXT` | Same filesystem modification timestamp as `mtime`. |
-| `extension` | `TEXT` | Lowercase extension without the dot; empty string for directories |
-| `is_dir` | `INTEGER` | `0` for a regular file, `1` for a directory |
+| Column        | Type               | Description                                                                                                   |
+| :------------ | :----------------- | :------------------------------------------------------------------------------------------------------------ |
+| `id`          | `TEXT PRIMARY KEY` | POSIX relative path from `root` (e.g. `docs/spec.pdf`)                                                        |
+| `name`        | `TEXT`             | File or directory name                                                                                        |
+| `path`        | `TEXT`             | Relative path (same as `id`)                                                                                  |
+| `size`        | `INTEGER`          | Native `stat.st_size`. For a directory, not the total size of its contents.                                   |
+| `mtime`       | `TEXT`             | ISO 8601 modification timestamp (UTC)                                                                         |
+| `_created_at` | `TEXT`             | Filesystem creation (birth) timestamp in UTC; `NULL` when unavailable. Never falls back to modification time. |
+| `_updated_at` | `TEXT`             | Same filesystem modification timestamp as `mtime`.                                                            |
+| `extension`   | `TEXT`             | Lowercase extension without the dot; empty string for directories                                             |
+| `is_dir`      | `INTEGER`          | `0` for a regular file, `1` for a directory                                                                   |
 
 The attachment column `file` and its MIME columns `mimetype` / `mime_type` are
 `NULL` for directories.
@@ -66,6 +66,26 @@ storage key:
 fields='[{"name":"Review status","type":"TEXT","key":"review-status"}]'
 ```
 
+When `fields` is omitted, the extension reads the root folder's schema from
+`<namespace>.schema` (`space.eidos.meta.schema` by default). The root is resolved
+relative to the database before this read. Define the schema once with:
+
+```bash
+xmeta schema set ./notes "rating INTEGER, status TEXT"
+```
+
+The stored JSON is `{"version":1,"fields":[{"name":"rating","type":"INTEGER"},{"name":"status","type":"TEXT"}]}`.
+An optional `key` maps a column to a property key. The CLI and extension share
+field validation and metadata conversions; there is no second index or query
+implementation. Absent schema means no custom columns. Invalid schema, unknown
+versions, duplicate or reserved names, and unsupported types are errors.
+Schemas are read when connecting the virtual table; reconnect or recreate the
+table after changing declarations. Nested or ancestor schemas are not merged.
+Explicit `fields` always wins, including `fields=''` for system columns only.
+Changing a schema does not change existing file properties. The namespace plus
+`.schema` suffix must fit the native 255-byte namespace limit. Discover this
+support through `fs_meta_capabilities()` containing `folder-schema`.
+
 Keep `key` unchanged when renaming the SQL column to preserve attribute values.
 
 The hidden `__fs_meta_remove_key` command column removes a retired key through
@@ -73,13 +93,13 @@ the current table's transaction journal after rebuilding its schema.
 
 ## Configuration
 
-| Parameter | Default | Description |
-| :--- | :--- | :--- |
-| `root` | *(Required)* | Absolute root, or a path relative to the owning database file (including attached databases). In-memory/temporary databases resolve relative roots against the working directory. |
-| `fields` | `""` | Comma-separated custom columns (`col_name TYPE, ...`) or a JSON array of `{name,type,key}` objects. |
-| `namespace` | `"space.eidos.meta"` | Attribute name used for xattr or ADS. |
-| `ignore` | `node_modules,target,.git,.graft` | Additional comma-separated directory/file ignore names. |
-| `on_delete` | `"clear_meta"` | `"clear_meta"` clears this namespace's metadata on `DELETE`, retaining the file/directory and children. `"delete_file"` removes the physical file or an empty directory. |
+| Parameter   | Default                           | Description                                                                                                                                                                       |
+| :---------- | :-------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `root`      | _(Required)_                      | Absolute root, or a path relative to the owning database file (including attached databases). In-memory/temporary databases resolve relative roots against the working directory. |
+| `fields`    | Folder schema, otherwise empty    | Comma-separated custom columns (`col_name TYPE, ...`) or a JSON array of `{name,type,key}` objects. Explicit fields override the folder schema, including `fields=''`.            |
+| `namespace` | `"space.eidos.meta"`              | Attribute name used for xattr or ADS.                                                                                                                                             |
+| `ignore`    | `node_modules,target,.git,.graft` | Additional comma-separated directory/file ignore names.                                                                                                                           |
+| `on_delete` | `"clear_meta"`                    | `"clear_meta"` clears this namespace's metadata on `DELETE`, retaining the file/directory and children. `"delete_file"` removes the physical file or an empty directory.          |
 
 Use `root='.'` to keep a file-backed index portable when its folder moves. SQL
 string arguments decode doubled quotes: `root='O''Brien'` addresses `O'Brien`.

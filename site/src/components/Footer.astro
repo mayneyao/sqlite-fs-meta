@@ -1,0 +1,31 @@
+---
+import { repository, docs, version } from '../data/project';
+import { messages, type Locale } from '../data/i18n';
+interface Props { locale: Locale; }
+const { locale } = Astro.props;
+const t = messages[locale];
+---
+<footer>
+  <div class="container footer">
+    <a class="footer-brand" href="#top">xmeta<span class="label">v{version}</span></a>
+    <p>{t.footer.truth}</p>
+    <nav aria-label={t.footer.label}>
+      <a href={`https://eidos.space${locale === 'zh' ? '/zh' : '/'}`}>Eidos ↗</a>
+      <a href={`${docs}/cli.md`}>{t.footer.cliDocs} ↗</a>
+      <a href={repository}>{t.footer.source} ↗</a>
+      <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/llms.txt`}>llms.txt ↗</a>
+      <a href="#top" aria-label={t.footer.top}>↑</a>
+    </nav>
+  </div>
+</footer>
+<style>
+  footer { border-top: 1px solid var(--rule-strong); background: var(--wash); }
+  .footer { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 2rem; padding-block: 2rem; }
+  .footer-brand { display: inline-flex; align-items: baseline; gap: 0.75rem; font-size: 0.875rem; font-weight: 600; text-decoration: none; }
+  .footer-brand span, p { color: var(--muted); font-weight: 400; }
+  p { font-size: 0.8125rem; }
+  nav { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 0 1.75rem; }
+  nav a { display: inline-flex; align-items: center; min-height: 44px; font-size: 0.75rem; text-decoration: none; }
+  nav a:hover { text-decoration: underline; color: var(--accent); }
+  @media (max-width: 660px) { .footer { align-items: start; flex-direction: column; gap: 0.5rem; } nav { margin-left: 0; gap: 0 1.5rem; } }
+</style>

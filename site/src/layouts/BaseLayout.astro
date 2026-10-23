@@ -1,0 +1,100 @@
+---
+import '@fontsource/ibm-plex-mono/latin-400.css';
+import '../styles/fonts.css';
+import '../styles/global.css';
+import { messages, localePath, type Locale } from '../data/i18n';
+
+interface Props { locale: Locale; title?: string; description?: string; }
+const { locale } = Astro.props;
+const t = messages[locale];
+const {
+  title = t.title,
+  description = t.description,
+} = Astro.props;
+const base = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
+const site = Astro.site ?? new URL('https://fsmeta.eidos.space');
+const canonical = new URL(Astro.url.pathname, site);
+const socialImage = new URL(`${base}og.png`, site);
+const english = new URL(localePath('en', base), site);
+const chinese = new URL(localePath('zh', base), site);
+---
+<!doctype html>
+<html lang={t.lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f8f7f3" />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
+    <link rel="canonical" href={canonical} />
+    <link rel="describedby" type="text/plain" href={`${base}llms.txt`} />
+    <link rel="alternate" hreflang="en" href={english} />
+    <link rel="alternate" hreflang="zh-CN" href={chinese} />
+    <link rel="alternate" hreflang="x-default" href={english} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content={t.ogLocale} />
+    <meta property="og:locale:alternate" content={messages[locale === 'en' ? 'zh' : 'en'].ogLocale} />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={t.title} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={socialImage} />
+    <title>{title}</title>
+  </head>
+  <body id="top">
+    <a class="skip-link" href="#main">{t.skip}</a>
+    <slot />
+    <div id="copy-status" class="sr-only" role="status"
+      data-success={t.copy.success} data-success-message={t.copy.successMessage}
+      data-failure={t.copy.failure} data-failure-message={t.copy.failureMessage}></div>
+    <script>
+      async function copyText(text: string) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return;
+        } catch {
+          const focused = document.activeElement;
+          const field = document.createElement('textarea');
+          field.value = text;
+          field.readOnly = true;
+          field.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+          document.body.append(field);
+          field.select();
+          try {
+            if (!document.execCommand('copy')) throw new Error('Copy unavailable');
+          } finally {
+            field.remove();
+            if (focused instanceof HTMLElement) focused.focus({ preventScroll: true });
+          }
+        }
+      }
+
+      document.addEventListener('click', async (event) => {
+        if (!(event.target instanceof Element)) return;
+        const button = event.target.closest<HTMLButtonElement>('button[data-copy]');
+        if (!button || button.disabled) return;
+        const previous = button.textContent ?? '';
+        const status = document.getElementById('copy-status');
+        if (status) status.textContent = '';
+        button.disabled = true;
+        try {
+          await copyText(button.dataset.copy ?? '');
+          button.textContent = status?.dataset.success ?? previous;
+          if (status) status.textContent = status.dataset.successMessage ?? '';
+        } catch {
+          button.textContent = status?.dataset.failure ?? previous;
+          if (status) status.textContent = status.dataset.failureMessage ?? '';
+        } finally {
+          window.setTimeout(() => { button.textContent = previous; button.disabled = false; }, 1600);
+        }
+      });
+    </script>
+  </body>
+</html>

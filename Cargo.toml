@@ -1,6 +1,6 @@
 [package]
 name = "sqlite-fs-meta"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "Treat your filesystem as a database: query and update files with SQLite"
 
@@ -21,6 +21,7 @@ thiserror = "2.0"
 walkdir = "2.5"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 sha2 = "0.10"
+rusqlite = { version = "0.38", features = ["bundled", "hooks"] }
 
 [target.'cfg(unix)'.dependencies]
 xattr = "1.4"

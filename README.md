@@ -2,8 +2,11 @@
 
 **Treat your filesystem as a database.**
 
-`sqlite-fs-meta` turns a folder into a SQLite virtual table. Files and directories
-become rows; properties such as tags, ratings, and status become typed columns.
+`xmeta` is a standalone CLI for reading, writing, and querying file metadata.
+SQLite and the existing `fs_meta` extension are bundled, so SQL queries require
+no separate installation or database file. The extension can also be embedded
+in existing SQLite applications. Files and directories become rows; properties
+such as tags, ratings, and status become typed columns.
 Metadata is stored natively in extended attributes (xattr) on macOS/Linux or NTFS
 alternate data streams (ADS) on Windows.
 
@@ -19,11 +22,43 @@ source of truth; SQLite is the query engine.
   a column without migrations.
 - **Fast point lookups**: `WHERE id = '...'` resolves a file directly instead of
   walking the tree.
-- **CLI companion**: `xmeta` handles fast single-target reads and writes.
+- **One CLI**: `xmeta` handles direct metadata edits, folder schemas, and SQL queries.
+- **Folder-local schema**: field declarations live in the root folder's extended
+  attributes and are shared by CLI queries and SQLite integrations.
 
 ## Quick start
 
-### Build
+Install on macOS or Linux:
+
+```bash
+curl -fsSL https://fsmeta.eidos.space/install.sh | sh
+```
+
+On Windows, in PowerShell:
+
+```powershell
+irm https://fsmeta.eidos.space/install.ps1 | iex
+```
+
+For an existing `notes` folder and `notes/note.md`:
+
+```bash
+xmeta set notes/note.md status=Active rating:=5
+xmeta schema set ./notes "rating INTEGER, status TEXT"
+xmeta query ./notes "SELECT id, rating FROM files WHERE rating >= 4 ORDER BY rating DESC"
+
+# Machine-readable, parameterized, paged output for agents and scripts.
+xmeta query ./notes "SELECT id FROM files WHERE status = ? ORDER BY id" \
+  --params '["Active"]' --limit 50 --offset 0 --json
+```
+
+Schema declarations live in `<metadata-namespace>.schema` on the root folder
+(`space.eidos.meta.schema` by default). Updating declarations never rewrites
+file properties. Queries use that root's schema across its descendants, without
+merging parent or nested schemas. `xmeta query` is read-only; property commands
+remain the direct editing interface. See the [CLI reference](docs/cli.md).
+
+### Build from source
 
 ```bash
 cargo build --release
@@ -69,14 +104,12 @@ Files and directories below `root` are rows. The root itself has no row; use
 `fs_meta_read` / `fs_meta_patch` for root properties. See the
 [extension reference](docs/extension.md) for the full schema and parameters.
 
-### Use the CLI
+### Direct property edits
 
-Download the `xmeta-v0.5.0-<target>` archive for your platform from
-[GitHub Releases](https://github.com/mayneyao/sqlite-fs-meta/releases/latest),
-extract it, and place `xmeta` (`xmeta.exe` on Windows) on your `PATH`. Checksums
-are provided in `SHA256SUMS`.
-
-To install from this source checkout, run `cargo install --path . --locked`.
+The installers verify the native binary's checksum and version and install to
+`~/.local/bin`. Re-run to update. Manual binaries and `SHA256SUMS` are on
+[GitHub Releases](https://github.com/mayneyao/sqlite-fs-meta/releases/latest).
+For source builds, use `cargo install --path . --locked`.
 
 ```bash
 # KEY=VALUE stores a string; KEY:=JSON stores parsed JSON.
@@ -91,11 +124,11 @@ xmeta clear note.md
 printf '%s' '{"owner":"team"}' | xmeta patch ./project --from -
 ```
 
-`xmeta` does not need SQLite or a database file. See the
+`xmeta` includes SQLite and needs no external SQLite program or database file. See the
 [CLI reference](docs/cli.md) for all commands, options, and exit codes.
 
-For visual file metadata management, use Eidos. `xmeta` stays focused on simple
-property reads and writes; it has no embedded UI or application runtime.
+For visual file metadata management, use Eidos. `xmeta` stays focused on metadata
+commands and folder queries; it has no embedded UI or application server.
 
 ### Set a default namespace
 
@@ -150,6 +183,8 @@ copied into a separate database.
   functions, transactions, and platform details.
 - [CLI reference](docs/cli.md): commands, namespace configuration, options, and
   exit codes.
+- [Landing page source](site/): Astro site with local development and deployment
+  notes.
 
 ## Tests
 

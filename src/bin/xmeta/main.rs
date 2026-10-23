@@ -3,6 +3,8 @@ mod commands;
 mod config;
 mod error;
 mod output;
+mod query;
+mod schema_command;
 
 use clap::Parser;
 use std::process::ExitCode;

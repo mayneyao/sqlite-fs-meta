@@ -1,0 +1,74 @@
+---
+import { messages, type Locale } from '../data/i18n';
+import { installCommand, windowsInstallCommand, release, version } from '../data/project';
+interface Props { locale: Locale; }
+const { locale } = Astro.props;
+const t = messages[locale];
+const platforms = [
+  { id: 'macos', label: 'macOS', command: installCommand },
+  { id: 'linux', label: 'Linux', command: installCommand },
+  { id: 'windows', label: 'Windows', command: windowsInstallCommand },
+];
+---
+<div class="installer" id="install" data-installer>
+  <div class="install-toolbar">
+    <div class="platform-tabs" role="tablist" aria-label={t.install.platforms}>
+      {platforms.map((platform, index) => <button type="button" role="tab" id={`install-tab-${platform.id}`} aria-selected={index === 0 ? 'true' : 'false'} aria-controls={`install-panel-${platform.id}`} tabindex={index === 0 ? 0 : -1} data-install-platform={platform.id}>{platform.label}</button>)}
+    </div>
+    <a class="label install-version" href={release}>v{version}</a>
+  </div>
+  {platforms.map((platform, index) => <div role="tabpanel" id={`install-panel-${platform.id}`} aria-labelledby={`install-tab-${platform.id}`} data-install-panel={platform.id} hidden={index !== 0}>
+    <div class="install-command">
+      <pre tabindex="0" aria-label={t.install.commandLabel(platform.label)}><code>{platform.command}</code></pre>
+      <button type="button" class="copy-button" data-copy={platform.command} aria-label={t.install.copyLabel(platform.label)}>{t.copy.button}</button>
+    </div>
+    <p class="install-note">{platform.id === 'windows' ? t.install.windowsNote : t.install.unixNote}</p>
+  </div>)}
+</div>
+<script>
+  document.querySelectorAll<HTMLElement>('[data-installer]').forEach((element) => {
+    const tabs = [...element.querySelectorAll<HTMLButtonElement>('[data-install-platform]')];
+    const panels = [...element.querySelectorAll<HTMLElement>('[data-install-panel]')];
+    const activate = (platform: string, remember = false) => {
+      if (!tabs.some((tab) => tab.dataset.installPlatform === platform)) return;
+      tabs.forEach((tab) => {
+        const selected = tab.dataset.installPlatform === platform;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+      });
+      panels.forEach((panel) => { panel.hidden = panel.dataset.installPanel !== platform; });
+      if (remember) { try { sessionStorage.setItem('xmeta:install-platform', platform); } catch { /* Optional preference. */ } }
+    };
+    const userAgent = navigator.userAgent;
+    let initial = /Windows/i.test(userAgent) ? 'windows' : /Linux/i.test(userAgent) && !/Android/i.test(userAgent) ? 'linux' : 'macos';
+    try { initial = sessionStorage.getItem('xmeta:install-platform') ?? initial; } catch { /* Tabs work without storage. */ }
+    activate(initial);
+    tabs.forEach((tab, index) => {
+      tab.addEventListener('click', () => activate(tab.dataset.installPlatform ?? '', true));
+      tab.addEventListener('keydown', (event) => {
+        let next: HTMLButtonElement | undefined;
+        if (event.key === 'ArrowRight') next = tabs[(index + 1) % tabs.length];
+        if (event.key === 'ArrowLeft') next = tabs[(index + tabs.length - 1) % tabs.length];
+        if (event.key === 'Home') next = tabs[0];
+        if (event.key === 'End') next = tabs.at(-1);
+        if (!next) return;
+        event.preventDefault();
+        activate(next.dataset.installPlatform ?? '', true);
+        next.focus();
+      });
+    });
+  });
+</script>
+<style>
+  .installer { max-width: 720px; margin: 2rem auto 0; border: 1px solid var(--rule-strong); border-radius: 4px; }
+  .install-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding-inline: 0.75rem 1rem; border-bottom: 1px solid var(--rule); }
+  .platform-tabs { display: flex; gap: 0.75rem; }
+  .platform-tabs button { position: relative; min-height: 44px; padding: 0.5rem 0.25rem; border: 0; background: transparent; color: var(--muted); font-size: 0.75rem; }
+  .platform-tabs button[aria-selected='true'] { color: var(--ink); }
+  .platform-tabs button[aria-selected='true']::after { position: absolute; content: ''; height: 2px; bottom: -1px; inset-inline: 0; background: var(--accent); }
+  .install-version { color: var(--faint); font-size: 0.625rem; letter-spacing: 0; text-decoration: none; }
+  .install-command { display: flex; align-items: start; gap: 0.5rem; padding: 0.4rem 0.5rem 0 1rem; }
+  pre { flex: 1; min-width: 0; margin: 0; padding-block: 0.65rem; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.75rem; line-height: 1.9; }
+  code { font-size: inherit; }
+  .install-note { padding: 0 1rem 0.8rem; color: var(--muted); font-size: 0.6875rem; line-height: 1.7; }
+</style>

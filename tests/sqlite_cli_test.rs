@@ -5,6 +5,50 @@ use std::process::{Command, Output, Stdio};
 use std::sync::OnceLock;
 use tempfile::tempdir;
 
+#[test]
+fn extension_reads_folder_schema_and_explicit_fields_still_override() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("notes");
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("note.md"), "content").unwrap();
+    fs_meta::properties::patch(
+        &root.join("note.md"),
+        "space.eidos.meta",
+        serde_json::from_str(r#"{"rating":5,"status":"Active"}"#).unwrap(),
+        &[],
+    )
+    .unwrap();
+    fs_meta::folder_schema::write(
+        &root,
+        "space.eidos.meta",
+        fs_meta::folder_schema::FolderSchema::from_fields("rating INTEGER, status TEXT").unwrap(),
+    )
+    .unwrap();
+    let db = temp.path().join("catalog.sqlite");
+    let sql = "CREATE VIRTUAL TABLE files USING fs_meta(root='notes'); SELECT id, rating, status FROM files;";
+    assert_eq!(run_sqlite(temp.path(), &db, sql), "note.md|5|Active");
+    // A new connection resolves the same root-relative schema from the DB path.
+    assert_eq!(
+        run_sqlite(&std::env::temp_dir(), &db, "SELECT rating FROM files;"),
+        "5"
+    );
+    fs_meta::properties::replace(
+        &root,
+        "space.eidos.meta.schema",
+        serde_json::from_str(r#"{"version":99,"fields":[]}"#).unwrap(),
+    )
+    .unwrap();
+    let quoted = sql_string(root.to_str().unwrap());
+    assert_eq!(run_sqlite(temp.path(), Path::new(":memory:"), &format!("CREATE VIRTUAL TABLE files USING fs_meta(root={quoted}, fields='status TEXT'); SELECT status FROM files;")), "Active");
+    let output = run_sqlite_output(
+        temp.path(),
+        Path::new(":memory:"),
+        &format!("CREATE VIRTUAL TABLE files USING fs_meta(root={quoted});"),
+    );
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("schema"));
+}
+
 fn extension_library() -> &'static Path {
     static LIBRARY: OnceLock<PathBuf> = OnceLock::new();
     LIBRARY.get_or_init(|| {

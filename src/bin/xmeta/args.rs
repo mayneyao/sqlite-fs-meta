@@ -1,12 +1,12 @@
 use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
-/// Read and write JSON properties stored in extended metadata.
+/// Read, write, and query file metadata.
 #[derive(Debug, Parser)]
 #[command(
     name = "xmeta",
     version,
-    about = "Read and write JSON properties stored in extended metadata (xattr / Windows ADS)",
+    about = "Read, write, and query file metadata (native xattr / Windows ADS, bundled SQLite)",
     arg_required_else_help = true,
     subcommand_required = true,
     disable_help_subcommand = true
@@ -45,6 +45,68 @@ pub enum Command {
     Clear(ClearArgs),
     /// Inspect or update the default namespace configuration.
     Config(ConfigArgs),
+    /// Manage typed fields stored on a folder's extended attributes.
+    Schema(SchemaArgs),
+    /// Query a folder using the bundled SQLite engine and fs_meta extension.
+    Query(QueryArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct SchemaArgs {
+    #[command(subcommand)]
+    pub command: SchemaCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SchemaCommand {
+    /// Read the folder schema (an absent schema has no custom fields).
+    Get {
+        #[arg(default_value = ".", value_name = "PATH")]
+        path: PathBuf,
+    },
+    /// Replace the folder's field declarations; file properties are unchanged.
+    Set {
+        #[arg(default_value = ".", value_name = "PATH")]
+        path: PathBuf,
+        /// Comma-separated declarations, e.g. "rating INTEGER, status TEXT".
+        #[arg(
+            value_name = "FIELDS",
+            required_unless_present = "from",
+            conflicts_with = "from"
+        )]
+        fields: Option<String>,
+        /// Read a versioned schema JSON object from FILE, or "-" for stdin.
+        #[arg(long, value_name = "FILE")]
+        from: Option<PathBuf>,
+    },
+    /// Remove only the folder schema; file metadata is preserved.
+    Clear {
+        #[arg(default_value = ".", value_name = "PATH")]
+        path: PathBuf,
+    },
+}
+
+#[derive(Debug, Args)]
+pub struct QueryArgs {
+    /// Root folder; only this folder's schema defines the query columns.
+    #[arg(default_value = ".", value_name = "PATH")]
+    pub path: PathBuf,
+    /// A single read-only SQL query against the "files" table.
+    /// Defaults to file paths, sizes, and the folder's custom columns.
+    #[arg(value_name = "SQL")]
+    pub sql: Option<String>,
+    /// Maximum rows returned per page (1–10000).
+    #[arg(long, default_value_t = 100, value_parser = clap::value_parser!(u32).range(1..=10000))]
+    pub limit: u32,
+    /// Skip this many rows of the query result. Use ORDER BY for stable pages.
+    #[arg(long, default_value_t = 0)]
+    pub offset: u64,
+    /// JSON array bound to SQL's positional ? parameters.
+    #[arg(long, default_value = "[]", value_name = "JSON")]
+    pub params: String,
+    /// Interrupt SQLite execution after this many milliseconds.
+    #[arg(long, default_value_t = 10000, value_parser = clap::value_parser!(u32).range(1..))]
+    pub timeout_ms: u32,
 }
 
 #[derive(Debug, Args)]
