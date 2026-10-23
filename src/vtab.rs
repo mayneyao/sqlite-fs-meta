@@ -254,6 +254,11 @@ unsafe extern "C" fn vtab_connect(
                 config.root = directory.join(&config.root);
             }
         }
+        if !config.fields_explicit {
+            config.custom_columns = crate::folder_schema::read(&config.root, &config.namespace)
+                .map_err(|error| format!("Could not read folder schema: {error}"))?
+                .columns()?;
+        }
         Ok(config)
     }) {
         Ok(c) => c,

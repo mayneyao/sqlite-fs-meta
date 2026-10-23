@@ -1,3 +1,13 @@
+# sqlite-fs-meta 0.6.0
+
+## xmeta queries and folder schemas
+
+- Bundle SQLite and the existing `fs_meta` extension in `xmeta`. `xmeta query [PATH] [SQL]` queries a folder without a separate SQLite installation, `.load` step, index, or database file.
+- Add `xmeta schema get/set/clear`. Versioned field declarations are stored in the root folder's `<metadata-namespace>.schema` xattr or NTFS ADS. Schema edits leave file properties unchanged.
+- The extension reads folder schemas when `fields` is omitted. Explicit fields, including `fields=''`, take precedence. CLI and application integrations share the same scanner, column conversions, and query behavior.
+- CLI queries are read-only and support bound JSON parameters, paged JSON/TSV results, and a SQLite progress-handler timeout. SQL writes, extension loading, and mutating scalar functions are blocked.
+- Existing file metadata and direct read/write commands require no migration. No Web UI or application runtime is added to the CLI.
+
 # sqlite-fs-meta 0.5.0
 
 ## `xmeta` CLI

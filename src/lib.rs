@@ -1,3 +1,4 @@
+pub mod folder_schema;
 pub mod fs_scanner;
 pub mod meta;
 pub mod properties;
@@ -19,7 +20,7 @@ fn init_fs_meta(db: *mut sqlite3) -> Result<()> {
         |context, _| {
             api::result_text(
                 context,
-                "[\"storage-keys\",\"metadata-rollback\",\"database-relative-uris\",\"metadata-api\",\"directory-properties\"]",
+                "[\"storage-keys\",\"metadata-rollback\",\"database-relative-uris\",\"metadata-api\",\"directory-properties\",\"folder-schema\"]",
             )
         },
         FunctionFlags::UTF8 | FunctionFlags::DETERMINISTIC,

@@ -1,0 +1,50 @@
+---
+import { repository, docs, release, version } from '../data/project';
+import { messages, localePath, type Locale } from '../data/i18n';
+interface Props { locale: Locale; }
+const { locale } = Astro.props;
+const t = messages[locale];
+const alternate = locale === 'en' ? 'zh' : 'en';
+---
+<header>
+  <div class="container nav">
+    <a class="brand" href="#top" aria-label={t.nav.home}>
+      <svg viewBox="0 0 24 24" width="23" height="23" aria-hidden="true">
+        <path d="M2 4h20v3H2zm0 7h20v3H2zm0 7h11v3H2zm15 0h5v3h-5z" fill="currentColor" />
+      </svg>
+      <span>xmeta</span>
+    </a>
+    <a class="version label" href={release}>v{version}</a>
+    <nav aria-label={t.nav.label}>
+      <a href="#interfaces">{t.nav.how}</a>
+      <a href={`${docs}/cli.md`}>{t.nav.docs} <span aria-hidden="true">↗</span></a>
+      <a href={repository}>GitHub <span aria-hidden="true">↗</span></a>
+      <a class="language-switch" href={localePath(alternate, import.meta.env.BASE_URL)}
+        lang={messages[alternate].lang} hreflang={messages[alternate].lang}
+        aria-label={t.nav.switchLabel} data-language-switch>{t.nav.switchText}</a>
+    </nav>
+  </div>
+</header>
+<script>
+  const languageSwitch = document.querySelector<HTMLAnchorElement>('[data-language-switch]');
+  const preserveSection = () => { if (languageSwitch) languageSwitch.hash = window.location.hash; };
+  preserveSection();
+  window.addEventListener('hashchange', preserveSection);
+</script>
+<style>
+  header { position: sticky; top: 0; z-index: 30; border-bottom: 1px solid var(--rule); background: var(--paper); }
+  .nav { display: flex; align-items: center; width: calc(100% - var(--gutter) * 2); min-height: 56px; gap: 0.85rem; flex-wrap: wrap; }
+  .brand { display: inline-flex; align-items: center; gap: 0.6rem; font-size: 1.25rem; font-weight: 600; letter-spacing: -0.035em; text-decoration: none; }
+  .version { color: var(--faint); text-decoration: none; padding: 0.75rem 0.25rem; font-size: 0.625rem; letter-spacing: 0; }
+  nav { margin-left: auto; display: flex; align-items: center; gap: 1.5rem; }
+  nav a { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; color: var(--muted); font-size: 0.875rem; font-weight: 500; text-decoration: none; }
+  nav a:hover, .version:hover { color: var(--accent); }
+  .language-switch { padding-left: 1.25rem; border-left: 1px solid var(--rule); font-size: 0.75rem; font-weight: 400; }
+  @media (max-width: 560px) {
+    .nav { gap: 0 1rem; padding-block: 0.4rem 0; }
+    nav { width: 100%; justify-content: space-between; gap: 0.5rem; }
+    .language-switch { padding-left: 0.75rem; }
+    nav a { font-size: 0.8125rem; }
+    .version { margin-left: auto; }
+  }
+</style>

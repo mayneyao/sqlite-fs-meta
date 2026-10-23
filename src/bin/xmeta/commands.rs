@@ -37,6 +37,8 @@ fn run_inner(cli: Cli) -> Result<(), CliError> {
                 Command::Unset(args) => unset(&namespace, json, args),
                 Command::Patch(args) => patch(&namespace, json, args),
                 Command::Clear(args) => clear(&namespace, args),
+                Command::Schema(args) => crate::schema_command::run(&namespace, json, args),
+                Command::Query(args) => crate::query::run(&namespace, json, args),
                 Command::Config(_) => unreachable!(),
             }
         }
@@ -50,6 +52,12 @@ fn command_target(command: &Command) -> Option<&Path> {
         Command::Unset(args) => Some(&args.path),
         Command::Patch(args) => Some(&args.path),
         Command::Clear(args) => Some(&args.path),
+        Command::Query(args) => Some(&args.path),
+        Command::Schema(args) => Some(match &args.command {
+            crate::args::SchemaCommand::Get { path }
+            | crate::args::SchemaCommand::Set { path, .. }
+            | crate::args::SchemaCommand::Clear { path } => path,
+        }),
         Command::Config(_) => None,
     }
 }
@@ -377,7 +385,7 @@ fn parse_assignment(raw: &str, json_values: bool) -> Result<Assignment, CliError
     })
 }
 
-fn read_json_object(path: &Path) -> Result<Map<String, Value>, CliError> {
+pub(crate) fn read_json_object(path: &Path) -> Result<Map<String, Value>, CliError> {
     let bytes = if path == Path::new("-") {
         read_stdin_limited()?
     } else {

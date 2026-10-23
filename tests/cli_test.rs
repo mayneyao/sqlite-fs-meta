@@ -6,6 +6,280 @@ use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use tempfile::tempdir;
 
+#[test]
+fn folder_schema_and_bundled_query_share_the_extension() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+    write_file(&root.join("note.md"), "untouched");
+    assert_ok(&run(
+        root,
+        &["set", "note.md", "rating:=5", "status=Active"],
+    ));
+    let schema = run(
+        root,
+        &[
+            "schema",
+            "set",
+            ".",
+            "rating INTEGER, status TEXT",
+            "--json",
+        ],
+    );
+    assert_ok(&schema);
+    assert_eq!(stdout_json(&schema)["version"], 1);
+    let stored = fs_meta::properties::read(root, "space.eidos.meta.schema").unwrap();
+    assert_eq!(stored["fields"][0]["name"], "rating");
+    let mut isolated = xmeta(root);
+    let output = isolated
+        .env("PATH", "")
+        .args([
+            "query",
+            ".",
+            "SELECT id, rating FROM files WHERE rating >= ?",
+            "--params",
+            "[4]",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    assert_ok(&output);
+    assert_eq!(
+        stdout_json(&output)["rows"],
+        serde_json::json!([{"id":"note.md","rating":5}])
+    );
+    assert_eq!(stdout_json(&output)["has_more"], false);
+    assert_eq!(
+        fs::read_to_string(root.join("note.md")).unwrap(),
+        "untouched"
+    );
+    assert_ok(&run(root, &["schema", "clear", "."]));
+    assert_eq!(
+        stdout_json(&run(root, &["get", "note.md", "rating", "--json"])),
+        5
+    );
+    assert_eq!(
+        stdout_json(&run(root, &["schema", "get", ".", "--json"]))["fields"],
+        serde_json::json!([])
+    );
+}
+
+#[test]
+fn query_pages_results_and_keeps_json_types() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+    for name in ["a.md", "b.md", "c.md"] {
+        write_file(&root.join(name), "x");
+    }
+    assert_ok(&run(root, &["schema", "set", ".", "rating INTEGER"]));
+    assert_ok(&run(root, &["set", "a.md", "rating:=5"]));
+    let first = run(
+        root,
+        &[
+            "query",
+            ".",
+            "SELECT id, rating FROM files ORDER BY id",
+            "--limit",
+            "2",
+            "--json",
+        ],
+    );
+    assert_ok(&first);
+    assert_eq!(
+        stdout_json(&first)["rows"],
+        serde_json::json!([{"id":"a.md","rating":5},{"id":"b.md","rating":null}])
+    );
+    assert_eq!(stdout_json(&first)["has_more"], true);
+    let next = run(
+        root,
+        &[
+            "query",
+            ".",
+            "SELECT id FROM files ORDER BY id",
+            "--limit",
+            "2",
+            "--offset",
+            "2",
+            "--json",
+        ],
+    );
+    assert_ok(&next);
+    assert_eq!(
+        stdout_json(&next)["rows"],
+        serde_json::json!([{"id":"c.md"}])
+    );
+    assert_eq!(stdout_json(&next)["has_more"], false);
+    let empty = run(
+        root,
+        &[
+            "query",
+            ".",
+            "SELECT id FROM files",
+            "--offset",
+            "99",
+            "--json",
+        ],
+    );
+    assert_ok(&empty);
+    assert_eq!(stdout_json(&empty)["rows"], serde_json::json!([]));
+    assert_eq!(stdout_json(&empty)["columns"], serde_json::json!(["id"]));
+    assert_ok(&run(root, &["query", "--json"]));
+}
+
+#[test]
+fn query_rejects_writes_functions_and_multiple_statements() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+    write_file(&root.join("note.md"), "safe");
+    assert_ok(&run(root, &["set", "note.md", "rating:=3"]));
+    for sql in [
+        "DELETE FROM files",
+        "UPDATE files SET size = 0",
+        "SELECT fs_meta_patch('note.md', 'space.eidos.meta', '{\"rating\":1}', '[]')",
+        "SELECT load_extension('anything')",
+        "PRAGMA query_only=OFF",
+        "ATTACH ':memory:' AS other",
+        "SELECT 1; DELETE FROM files;",
+    ] {
+        let output = run(root, &["query", ".", sql, "--json"]);
+        assert_failure(&output, 4);
+        assert!(output.stdout.is_empty(), "partial output for {sql}");
+        assert_eq!(stderr_json(&output)["error"]["code"], "invalid");
+    }
+    assert_eq!(
+        stdout_json(&run(root, &["get", "note.md", "rating", "--json"])),
+        3
+    );
+    assert_eq!(fs::read_to_string(root.join("note.md")).unwrap(), "safe");
+    let timeout = run(root, &["query", ".", "WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1000000000) SELECT sum(x) FROM n", "--timeout-ms", "1", "--json"]);
+    assert_failure(&timeout, 4);
+    assert!(timeout.stdout.is_empty());
+}
+
+#[test]
+fn schema_namespaces_json_keys_and_quoted_roots_are_supported() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+    let folder = root.join("owner's notes");
+    fs::create_dir(&folder).unwrap();
+    write_file(&folder.join("a.md"), "x");
+    let document =
+        r#"{"version":1,"fields":[{"name":"Review 备注","type":"integer","key":"review-score"}]}"#;
+    let output = run_stdin(
+        root,
+        &[
+            "-n",
+            "space.test.notes",
+            "schema",
+            "set",
+            "owner's notes",
+            "--from",
+            "-",
+            "--json",
+        ],
+        document,
+    );
+    assert_ok(&output);
+    assert_eq!(stdout_json(&output)["fields"][0]["type"], "INTEGER");
+    assert_ok(&run(
+        root,
+        &[
+            "-n",
+            "space.test.notes",
+            "set",
+            "owner's notes/a.md",
+            "review-score:=4",
+        ],
+    ));
+    let query = run(
+        root,
+        &[
+            "-n",
+            "space.test.notes",
+            "query",
+            "owner's notes",
+            "SELECT \"Review 备注\" FROM files",
+            "--json",
+        ],
+    );
+    assert_ok(&query);
+    assert_eq!(stdout_json(&query)["rows"][0]["Review 备注"], 4);
+    assert!(fs_meta::properties::read(root, "space.eidos.meta.schema")
+        .unwrap()
+        .is_empty());
+    let default = run(root, &["query", "owner's notes", "--json"]);
+    assert_ok(&default);
+    assert_eq!(
+        stdout_json(&default)["columns"],
+        serde_json::json!(["id", "size"])
+    );
+}
+
+#[test]
+fn invalid_schemas_fail_without_replacing_existing_schema_or_properties() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+    write_file(&root.join("note.md"), "x");
+    assert_ok(&run(root, &["set", ".", "owner=team"]));
+    assert_ok(&run(root, &["schema", "set", ".", "rating INTEGER"]));
+    let before = fs_meta::properties::read_raw(root, "space.eidos.meta.schema").unwrap();
+    for fields in [
+        "id TEXT",
+        "Rating INTEGER, rating TEXT",
+        "rating INVALID",
+        "rating TEXT); DROP TABLE files",
+        "rating INTEGER unexpected",
+    ] {
+        assert_failure(&run(root, &["schema", "set", ".", fields, "--json"]), 4);
+        assert_eq!(
+            fs_meta::properties::read_raw(root, "space.eidos.meta.schema").unwrap(),
+            before
+        );
+    }
+    assert_failure(
+        &run_stdin(
+            root,
+            &["schema", "set", ".", "--from", "-", "--json"],
+            r#"{"version":2,"fields":[]}"#,
+        ),
+        4,
+    );
+    assert_failure(
+        &run(
+            root,
+            &["schema", "set", "note.md", "rating INTEGER", "--json"],
+        ),
+        4,
+    );
+    assert_eq!(
+        stdout_json(&run(root, &["get", ".", "owner", "--json"])),
+        "team"
+    );
+    fs_meta::properties::replace(
+        root,
+        "space.eidos.meta.schema",
+        serde_json::from_str(r#"{"version":999,"fields":[]}"#).unwrap(),
+    )
+    .unwrap();
+    assert_failure(
+        &run(root, &["query", ".", "SELECT id FROM files", "--json"]),
+        4,
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn schema_and_query_reject_symbolic_root_links() {
+    let temp = tempdir().unwrap();
+    fs::create_dir(temp.path().join("real")).unwrap();
+    std::os::unix::fs::symlink("real", temp.path().join("linked")).unwrap();
+    for args in [
+        vec!["schema", "set", "linked", "rating INTEGER", "--json"],
+        vec!["query", "linked", "--json"],
+    ] {
+        assert_failure(&run(temp.path(), &args), 4);
+    }
+}
+
 fn xmeta(cwd: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_xmeta"));
     command
