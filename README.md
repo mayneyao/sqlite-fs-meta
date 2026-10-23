@@ -147,7 +147,9 @@ printf '%s' '{"owner":"team"}' | xmeta patch ./project --from -
 `xmeta` includes SQLite and needs no external SQLite program or database file. See the
 [CLI reference](docs/cli.md) for all commands, options, and exit codes.
 
-For visual file metadata management, use Eidos. `xmeta` stays focused on metadata
+Eidos Lite provides a general-purpose GUI; its file metadata management feature
+requires a [Spark license](https://eidos.space/spark#file-metadata). Eidos Lite and
+xmeta share the default `space.eidos.meta` namespace. `xmeta` stays focused on metadata
 commands and folder queries; it has no embedded UI or application server.
 
 ### Set a default namespace

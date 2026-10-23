@@ -57,11 +57,11 @@ const en = {
     ],
   },
   gui: {
-    label: "GUI / Eidos Spark",
+    label: "GUI / Eidos Lite",
     title: "A graphical interface, too.",
-    description: "Eidos Spark and xmeta share the default namespace",
-    detail: ". Manage the same file properties in the terminal and the GUI.",
-    action: "Explore Eidos Spark",
+    description: "Eidos Lite and xmeta share the default namespace",
+    detail: ". Manage the same file properties in the terminal and the GUI. File metadata management in Eidos Lite requires a Spark license.",
+    action: "File metadata in Eidos Lite",
     href: "https://eidos.space/spark#file-metadata",
   },
   install: {
@@ -128,11 +128,11 @@ const zh: typeof en = {
     ],
   },
   gui: {
-    label: "GUI / Eidos Spark",
+    label: "GUI / Eidos Lite",
     title: "用图形界面管理文件属性。",
-    description: "Eidos Spark 与 xmeta 默认共用 namespace",
-    detail: "，在终端和图形界面管理同一份文件属性。",
-    action: "了解 Eidos Spark",
+    description: "Eidos Lite 与 xmeta 默认共用 namespace",
+    detail: "，在终端和图形界面管理同一份文件属性。Eidos Lite 的文件属性管理功能需 Spark 许可证解锁。",
+    action: "了解 Eidos Lite 文件属性管理",
     href: "https://eidos.space/zh/spark#file-metadata",
   },
   install: {

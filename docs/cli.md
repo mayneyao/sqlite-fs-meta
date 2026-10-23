@@ -4,7 +4,9 @@
 It bundles SQLite and the existing `fs_meta` extension, so folder queries require
 no external SQLite installation, extension loading, or persistent database.
 
-Use Eidos for visual file metadata management. `xmeta` provides direct property
+Eidos Lite provides a general-purpose GUI. File metadata management in Eidos Lite
+requires a [Spark license](https://eidos.space/spark#file-metadata); it shares the
+default `space.eidos.meta` namespace with xmeta. `xmeta` provides direct property
 edits and folder queries without an embedded UI or application server.
 
 ## Installation
