@@ -1,6 +1,8 @@
-# sqlite-fs-meta
+<img src="site/public/logo.svg" alt="xmeta logo" width="64" height="64">
 
-**Treat your filesystem as a database.**
+# xmeta / sqlite-fs-meta
+
+**Custom file properties. Manage files like a database.**
 
 `xmeta` is a standalone CLI for reading, writing, and querying file metadata.
 SQLite and the existing `fs_meta` extension are bundled, so SQL queries require
@@ -10,8 +12,9 @@ such as tags, ratings, and status become typed columns.
 Metadata is stored natively in extended attributes (xattr) on macOS/Linux or NTFS
 alternate data streams (ADS) on Windows.
 
-No index database. No sync daemon. No sidecar files. The filesystem stays the
-source of truth; SQLite is the query engine.
+No index database, sync daemon, or metadata sidecars. The filesystem stays the
+source of truth; SQLite is the query engine. Optional CLI configuration uses a
+JSON file; file properties and folder schemas stay in xattr / ADS.
 
 - **SQL over your files**: filter, sort, aggregate, and update files without
   writing traversal scripts.
@@ -40,17 +43,25 @@ On Windows, in PowerShell:
 irm https://fsmeta.eidos.space/install.ps1 | iex
 ```
 
-For an existing `notes` folder and `notes/note.md`:
+For an existing film and TV folder (run these commands inside it):
 
 ```bash
-xmeta set notes/note.md status=Active rating:=5
-xmeta schema set ./notes "rating INTEGER, status TEXT"
-xmeta query ./notes "SELECT id, rating FROM files WHERE rating >= 4 ORDER BY rating DESC"
+ls
+# Arrival.mkv  Dune.mkv  Her.mkv  Severance.S01E01.mkv
+
+xmeta schema set . "genre TEXT, status TEXT, rating REAL" --json
+xmeta set Her.mkv genre=Sci-Fi status=Watched rating:=8.5 --print
+xmeta query . "SELECT id, status, rating FROM files WHERE is_dir = 0 AND genre = 'Sci-Fi' AND rating >= 8 ORDER BY rating DESC"
+# id       status   rating
+# Her.mkv  Watched  8.5
 
 # Machine-readable, parameterized, paged output for agents and scripts.
-xmeta query ./notes "SELECT id FROM files WHERE status = ? ORDER BY id" \
-  --params '["Active"]' --limit 50 --offset 0 --json
+xmeta query . "SELECT id FROM files WHERE is_dir = 0 AND status = ? ORDER BY id" \
+  --params '["Watched"]' --limit 50 --offset 0 --json
 ```
+
+The rating is a personal example value. Use your own existing files and values;
+`xmeta` does not create media files. See the [animated CLI demo](https://fsmeta.eidos.space/#demo).
 
 Schema declarations live in `<metadata-namespace>.schema` on the root folder
 (`space.eidos.meta.schema` by default). Updating declarations never rewrites
@@ -103,6 +114,15 @@ DELETE FROM files WHERE id = 'contracts/2026.pdf';
 Files and directories below `root` are rows. The root itself has no row; use
 `fs_meta_read` / `fs_meta_patch` for root properties. See the
 [extension reference](docs/extension.md) for the full schema and parameters.
+
+To reuse a folder schema defined with `xmeta schema set`, omit `fields`:
+
+```sql
+CREATE VIRTUAL TABLE movies USING fs_meta(root = '/path/to/Movies');
+```
+
+Explicit `fields` overrides the stored schema. On Windows, load
+`./target/release/fs_meta.dll` instead of `./target/release/libfs_meta`.
 
 ### Direct property edits
 
@@ -158,18 +178,26 @@ nearest `.xmeta.json` → user config → `space.eidos.meta`.
 ## How it works
 
 ```text
-SQL ──▶ fs_meta virtual table ──▶ xattr (macOS/Linux)
-                                  ADS   (Windows)
+xmeta query ──▶ bundled SQLite + fs_meta ──▶ filesystem stats + xattr / ADS
+SQLite app  ──▶ loadable fs_meta         ──▶ the same storage and semantics
 ```
 
-`SELECT` reads filesystem stats and property envelopes lazily. `UPDATE` merges
-values into the file's JSON envelope. `DELETE` clears the namespace. Nothing is
-copied into a separate database.
+General queries enumerate the directory tree and collect filesystem stats before
+returning rows. Custom property envelopes are read on demand; equality lookups
+on `id` can resolve a path directly. Result pagination does not make directory
+enumeration incremental, and sorting or aggregation may read metadata across
+the whole tree. No persistent index is created.
+
+Through the separate extension, `UPDATE` merges values into the file's JSON
+envelope and the default `DELETE` clears the namespace. `xmeta query` is read-only;
+use the CLI property commands for edits.
 
 ## Safety and limits
 
 - Requires writable xattr / ADS support on the target filesystem.
-- Targets must already exist; the CLI never creates files or sidecars.
+- Copies, archives, and sync tools may drop native metadata; check preservation
+  when transferring files or folder schemas.
+- Property commands require existing targets and never create target files.
 - Symbolic links, Windows reparse points, and Unix regular files with multiple
   hard links are rejected for writes.
 - Directory properties belong to the directory itself and are not inherited.
@@ -183,6 +211,9 @@ copied into a separate database.
   functions, transactions, and platform details.
 - [CLI reference](docs/cli.md): commands, namespace configuration, options, and
   exit codes.
+- [Agent guide](https://fsmeta.eidos.space/docs/agent-guide.md) and
+  [llms.txt](https://fsmeta.eidos.space/llms.txt): workflows and documentation discovery.
+- [Release notes](RELEASE_NOTES.md): shipped changes and compatibility details.
 - [Landing page source](site/): Astro site with local development and deployment
   notes.
 

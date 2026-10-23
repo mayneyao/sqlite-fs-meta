@@ -104,8 +104,12 @@ Only the query root's schema defines columns for the whole recursive query;
 parent and nested folder schemas are not merged. All ordinary extension
 system columns, JSON metadata conversions, scan exclusions, and direct `id`
 lookups remain available. SQL filtering and sorting run in SQLite. Metadata is
-read on demand by the extension, not copied into a second table. Sorting or
-aggregating can still require scanning the whole folder.
+read on demand by the extension, not copied into a second table. General queries
+first enumerate the entire tree and collect filesystem stats; result pagination
+does not make that enumeration incremental. Equality lookups on `id` can resolve
+a path directly. Hidden names (starting with `.`), `node_modules`, `target`, and
+their descendants are excluded from general scans. Sorting or aggregation may
+read custom metadata across the whole tree.
 
 Queries accept one read-only statement. SQL writes, `ATTACH`, `PRAGMA`,
 extension loading, and mutating functions such as `fs_meta_patch` are rejected.
@@ -115,7 +119,8 @@ Use `set`, `patch`, `unset`, or `clear` to edit metadata.
 SQLite values, booleans to 0/1, and objects/arrays to JSON text. Integer bindings
 must fit signed 64-bit SQLite integers. The default execution timeout is
 10,000 milliseconds (`--timeout-ms`); SQLite checks its progress handler between
-VM operations, so an individual native filesystem call cannot be interrupted.
+VM operations, so a native directory scan or filesystem call cannot be interrupted
+while it is running.
 
 Results are paginated after applying SQL: `--limit` defaults to 100 (maximum
 10,000), and `--offset` defaults to 0. Use `ORDER BY` for stable pages on an

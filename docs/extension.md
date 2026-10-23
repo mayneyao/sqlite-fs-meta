@@ -25,13 +25,17 @@ Build artifacts:
 - Linux: `libfs_meta.so`
 - Windows: `fs_meta.dll`
 
+The loading example above is for macOS/Linux. On Windows, use
+`.load ./target/release/fs_meta.dll`.
+
 ## Table Schema
 
 ### Built-in system columns
 
 | Column        | Type               | Description                                                                                                   |
 | :------------ | :----------------- | :------------------------------------------------------------------------------------------------------------ |
-| `id`          | `TEXT PRIMARY KEY` | POSIX relative path from `root` (e.g. `docs/spec.pdf`)                                                        |
+| `_id`         | `TEXT PRIMARY KEY` | POSIX relative path from `root` (e.g. `docs/spec.pdf`)                                                        |
+| `id`          | `TEXT`             | Alias of `_id`; supports direct path equality lookups.                                                      |
 | `name`        | `TEXT`             | File or directory name                                                                                        |
 | `path`        | `TEXT`             | Relative path (same as `id`)                                                                                  |
 | `size`        | `INTEGER`          | Native `stat.st_size`. For a directory, not the total size of its contents.                                   |
@@ -40,6 +44,9 @@ Build artifacts:
 | `_updated_at` | `TEXT`             | Same filesystem modification timestamp as `mtime`.                                                            |
 | `extension`   | `TEXT`             | Lowercase extension without the dot; empty string for directories                                             |
 | `is_dir`      | `INTEGER`          | `0` for a regular file, `1` for a directory                                                                   |
+| `file`        | `TEXT`             | JSON attachment array with `id`, `name`, `uri`, `size`, and `mediaType`; `NULL` for directories.              |
+| `mimetype`    | `TEXT`             | MIME type inferred from the extension; `NULL` for directories.                                               |
+| `mime_type`   | `TEXT`             | Alias of `mimetype`.                                                                                        |
 
 The attachment column `file` and its MIME columns `mimetype` / `mime_type` are
 `NULL` for directories.
@@ -112,9 +119,9 @@ Prefer the default `clear_meta` when deleting properties.
 Tables recursively include regular files and directories below `root`, including
 empty directories. The root itself has no row; use `fs_meta_read` or
 `fs_meta_patch` for root properties. Use `WHERE is_dir = 0` for file-only queries.
-Hidden names and configured ignore rules are retained for directories and their
-descendants. Symbolic links and Windows reparse points are excluded from scans and
-point lookups.
+Names starting with `.` and configured ignore names are excluded from general
+scans, together with their descendants. Symbolic links and Windows reparse points
+are excluded from scans and point lookups.
 
 ## Scalar property functions
 
@@ -192,6 +199,9 @@ these functions and directory support are available.
 
 1. **`SELECT`** iterates matching files and directories. Standard stats come from
    the filesystem; custom columns are lazily read from each entry's metadata.
+   General scans first enumerate the whole directory tree and collect entry
+   stats in memory. `LIMIT` bounds returned rows, not this initial enumeration.
+   Equality lookups on `_id`, `id`, or `path` can resolve an entry directly.
 2. **`UPDATE`** reads the existing JSON envelope, merges new values, and writes it
    back to xattr/ADS. Setting a custom column to SQL `NULL` removes its key.
 3. **`DELETE`** clears this namespace's metadata without affecting file contents or
@@ -199,6 +209,9 @@ these functions and directory support are available.
 
 The filesystem remains the source of truth. The virtual table is a live view over
 it, not a copy.
+
+Filesystem copies, archives, and sync tools may drop xattr / ADS. Check that file
+properties and folder schemas survive transfers with the tools you use.
 
 ## Transactions and safety
 

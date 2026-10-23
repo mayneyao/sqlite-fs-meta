@@ -11,6 +11,7 @@ Sans and Serif Latin fonts are vendored from the official site's Fontsource
 The folder-table mark lives in `public/logo.svg` and is shared by both language
 headers. The favicon and social image use the same paths. The SVG favicon
 adjusts its foreground for light and dark browser chrome.
+The repository README references the same `public/logo.svg` asset.
 
 ## Languages
 

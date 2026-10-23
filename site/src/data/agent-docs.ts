@@ -73,9 +73,9 @@ The schema is a separate <metadata-namespace>.schema attribute on the root direc
 xmeta query "./notes" "SELECT id, rating FROM files WHERE rating >= ? ORDER BY rating DESC, id" --params '[4]' --limit 50 --offset 0 --json
 \`\`\`
 
-xmeta query defaults to the current folder and, without SQL, lists paths, sizes, and its custom columns. --json returns columns, rows as objects, limit, offset, and has_more. Use --params with a JSON array for bound SQL values, and --limit / --offset to page results. The default limit is 100, maximum 10000. Use stable ORDER BY on an unchanged folder; filesystem changes between invocations can move page boundaries. Metadata stays in the filesystem and is read by the existing extension on demand; sorts and aggregates may still scan the whole folder.
+xmeta query defaults to the current folder and, without SQL, lists file paths, sizes, and its custom columns. --json returns columns, rows as objects, limit, offset, and has_more. Use --params with a JSON array for bound SQL values, and --limit / --offset to page results. The default limit is 100, maximum 10000. Use stable ORDER BY on an unchanged folder; filesystem changes between invocations can move page boundaries. General queries enumerate the whole tree and collect filesystem stats before returning rows; pagination does not make enumeration incremental. Custom metadata is read on demand, while sorts and aggregates may read it across the whole tree. Equality lookups on id can resolve a path directly.
 
-query accepts one read-only statement. SQL writes, ATTACH, PRAGMA, extension loading, and fs_meta_patch are blocked. Use xmeta property commands for changes. Column names must be unique; use AS aliases. BLOB results are objects with a $blob hexadecimal string. SQL execution defaults to a 10000 ms progress-handler timeout; it cannot interrupt an individual native filesystem call. Read the CLI reference for error codes and output details.
+query accepts one read-only statement. SQL writes, ATTACH, PRAGMA, extension loading, and fs_meta_patch are blocked. Use xmeta property commands for changes. Column names must be unique; use AS aliases. BLOB results are objects with a $blob hexadecimal string. SQL execution defaults to a 10000 ms progress-handler timeout; it cannot interrupt a native directory scan or filesystem call while it is running. Read the CLI reference for error codes and output details.
 
 ## Handle results correctly
 
@@ -90,7 +90,7 @@ Targets must already exist. Symbolic links and Windows reparse points are exclud
 
 CLI and scalar-function writes take effect immediately and cannot be undone with a SQL transaction. Virtual-table metadata updates/clears support in-process SQL transaction/savepoint rollback, but do not provide crash atomicity or isolation from other writers. Serialize competing writers. The default SQL DELETE clears namespace metadata; on_delete='delete_file' opts into physical deletion, which cannot be rolled back. Keep the default unless physical deletion was requested.
 
-A virtual table includes entries below its root, not the root itself. Use xmeta on the root directory, or fs_meta_read/fs_meta_patch for its properties. See the extension reference for native loading, typed fields, lazy scans, direct id lookups, and transaction details.
+A virtual table includes entries below its root, not the root itself. Use xmeta on the root directory, or fs_meta_read/fs_meta_patch for its properties. See the extension reference for native loading, typed fields, scan behavior, direct id lookups, and transaction details.
 
 ## Starter prompt
 
