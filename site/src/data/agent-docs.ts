@@ -5,12 +5,12 @@ import { installCommand, repository, siteOrigin, version, windowsInstallCommand 
 
 export const agentGuide = `# xmeta Agent Guide
 
-> xmeta ${version} reads and writes properties on existing local files and directories. sqlite-fs-meta is its companion loadable SQLite extension. Metadata lives in native xattr (macOS/Linux) or NTFS ADS (Windows), not in a sidecar or index database.
+> xmeta ${version} reads and writes properties on existing local files and directories. Its companion SQLite extension uses the fs_meta module. Metadata lives in native xattr (macOS/Linux) or NTFS ADS (Windows), not in a sidecar or index database.
 
 ## Choose the right interface
 
 - Use xmeta for metadata reads, edits, folder schema, and read-only SQL queries. SQLite and the existing fs_meta extension are bundled; no external SQLite installation, .load step, index, or database file is needed.
-- Use the separate sqlite-fs-meta extension when integrating filesystem metadata into an existing SQLite application, including SQL updates. Ordinary CLI users can stay with xmeta.
+- Use the separate fs_meta extension when integrating filesystem metadata into an existing SQLite application, including SQL updates. Ordinary CLI users can stay with xmeta.
 - Use Eidos for visual metadata management. There is no xmeta scan, serve, or embedded Web UI command.
 - Read the [CLI reference](${siteOrigin}/docs/cli.md) and [extension reference](${siteOrigin}/docs/extension.md) for the actual flags, SQL behavior, and limits. Do not infer commands from the product name.
 
@@ -105,9 +105,9 @@ export const agentDocuments = {
 
 export type AgentDocument = keyof typeof agentDocuments;
 
-export const llmsIndex = `# xmeta / sqlite-fs-meta
+export const llmsIndex = `# xmeta
 
-> Native file metadata for agents and people. xmeta reads and writes properties on existing files; sqlite-fs-meta exposes a folder as a writable SQLite virtual table. Properties live in xattr (macOS/Linux) or NTFS ADS (Windows), with no sidecar or index database.
+> Native file metadata for agents and people. xmeta reads and writes properties on existing files; its fs_meta extension exposes a folder as a writable SQLite virtual table. Properties live in xattr (macOS/Linux) or NTFS ADS (Windows), with no sidecar or index database.
 
 This site documents release ${version}. Use xmeta --version and --help to check the installed version. xmeta bundles SQLite and fs_meta: use xmeta query for folder SQL and xmeta schema for field declarations stored on the root folder. The separate extension is for SQLite application integration; Eidos provides visual management. Respect target paths and namespaces, inspect before edits, and re-read after writes. query is read-only; CLI metadata writes are immediate, not SQL-transactional.
 
@@ -124,7 +124,7 @@ This site documents release ${version}. Use xmeta --version and --help to check 
 - [Release ${version}](${repository}/releases/tag/v${version}): Native CLI, separate SQLite extension, and SHA256SUMS for supported platforms.
 `;
 
-export const fullAgentDocumentation = `# xmeta / sqlite-fs-meta — Full Documentation
+export const fullAgentDocumentation = `# xmeta — Full Documentation
 
 Release: ${version}
 Index: ${siteOrigin}/llms.txt

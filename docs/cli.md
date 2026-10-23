@@ -12,13 +12,13 @@ edits and folder queries without an embedded UI or application server.
 macOS (Apple Silicon and Intel) and Linux (ARM64 and x86-64):
 
 ```bash
-curl -fsSL https://fsmeta.eidos.space/install.sh | sh
+curl -fsSL https://xmeta.eidos.space/install.sh | sh
 ```
 
 Windows (x86-64), in PowerShell:
 
 ```powershell
-irm https://fsmeta.eidos.space/install.ps1 | iex
+irm https://xmeta.eidos.space/install.ps1 | iex
 ```
 
 The installers download the native binary, verify its checksum and version,
@@ -27,7 +27,7 @@ your shell's `PATH` if it is not already included; the Windows installer adds it
 to the user and current-session `PATH`.
 
 Manual downloads and `SHA256SUMS` are available on
-[GitHub Releases](https://github.com/mayneyao/sqlite-fs-meta/releases/latest).
+[GitHub Releases](https://github.com/mayneyao/xmeta/releases/latest).
 To build from source:
 
 ```bash

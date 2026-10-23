@@ -12,9 +12,9 @@ const {
   description = t.description,
 } = Astro.props;
 const base = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`;
-const site = Astro.site ?? new URL('https://fsmeta.eidos.space');
+const site = Astro.site ?? new URL('https://xmeta.eidos.space');
 const canonical = new URL(Astro.url.pathname, site);
-const socialImage = new URL(`${base}og.png?v=folder-table`, site);
+const socialImage = new URL(`${base}og.png?v=xmeta`, site);
 const english = new URL(localePath('en', base), site);
 const chinese = new URL(localePath('zh', base), site);
 ---

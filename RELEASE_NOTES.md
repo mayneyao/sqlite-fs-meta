@@ -1,4 +1,4 @@
-# sqlite-fs-meta 0.6.0
+# xmeta 0.6.0
 
 ## xmeta queries and folder schemas
 
@@ -8,7 +8,7 @@
 - CLI queries are read-only and support bound JSON parameters, paged JSON/TSV results, and a SQLite progress-handler timeout. SQL writes, extension loading, and mutating scalar functions are blocked.
 - Existing file metadata and direct read/write commands require no migration. No Web UI or application runtime is added to the CLI.
 
-# sqlite-fs-meta 0.5.0
+# xmeta 0.5.0
 
 ## `xmeta` CLI
 
@@ -26,7 +26,7 @@
 - Existing metadata requires no migration. The CLI reads and writes the same xattr/ADS envelopes.
 - The CLI is intentionally single-target in this release; recursive and batch writes remain out of scope.
 
-# sqlite-fs-meta 0.4.0
+# xmeta 0.4.0
 
 ## Directory properties
 

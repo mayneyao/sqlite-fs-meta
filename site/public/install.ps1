@@ -5,8 +5,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-$LatestUrl = if ($env:XMETA_LATEST_URL) { $env:XMETA_LATEST_URL } else { 'https://fsmeta.eidos.space/cli/latest.txt' }
-$DownloadBase = if ($env:XMETA_DOWNLOAD_BASE) { $env:XMETA_DOWNLOAD_BASE } else { 'https://github.com/mayneyao/sqlite-fs-meta/releases/download' }
+$LatestUrl = if ($env:XMETA_LATEST_URL) { $env:XMETA_LATEST_URL } else { 'https://xmeta.eidos.space/cli/latest.txt' }
+$DownloadBase = if ($env:XMETA_DOWNLOAD_BASE) { $env:XMETA_DOWNLOAD_BASE } else { 'https://github.com/mayneyao/xmeta/releases/download' }
 if (-not $InstallDir) { $InstallDir = Join-Path $HOME '.local\bin' }
 if (-not [IO.Path]::IsPathRooted($InstallDir)) { throw 'Install directory must be an absolute path' }
 $InstallDir = [IO.Path]::GetFullPath($InstallDir)

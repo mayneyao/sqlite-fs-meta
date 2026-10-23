@@ -45,7 +45,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ASSET: ${{ matrix.asset }}
         run: |
-          gh release download v0.2.3 --repo mayneyao/sqlite-fs-meta --dir diagnostic-bin --pattern "$ASSET" --pattern SHA256SUMS
+          gh release download v0.2.3 --repo mayneyao/xmeta --dir diagnostic-bin --pattern "$ASSET" --pattern SHA256SUMS
           python -c 'import hashlib,os,pathlib; p=pathlib.Path("diagnostic-bin"); n=os.environ["ASSET"]; lines=(p/"SHA256SUMS").read_text().splitlines(); expected=next(line.split()[0] for line in lines if line.split()[-1].lstrip("*")==n); actual=hashlib.sha256((p/n).read_bytes()).hexdigest(); assert actual==expected, (actual,expected); print(n,actual)'
       - name: Observe native, Node and virtual-table timestamps
         if: inputs.binary == 'released'

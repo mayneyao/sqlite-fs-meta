@@ -1,6 +1,6 @@
 <img src="site/public/logo.svg" alt="xmeta logo" width="64" height="64">
 
-# xmeta / sqlite-fs-meta
+# xmeta
 
 **Custom file properties. Manage files like a database.**
 
@@ -34,13 +34,13 @@ JSON file; file properties and folder schemas stay in xattr / ADS.
 Install on macOS or Linux:
 
 ```bash
-curl -fsSL https://fsmeta.eidos.space/install.sh | sh
+curl -fsSL https://xmeta.eidos.space/install.sh | sh
 ```
 
 On Windows, in PowerShell:
 
 ```powershell
-irm https://fsmeta.eidos.space/install.ps1 | iex
+irm https://xmeta.eidos.space/install.ps1 | iex
 ```
 
 For an existing film and TV folder (run these commands inside it):
@@ -61,7 +61,7 @@ xmeta query . "SELECT id FROM files WHERE is_dir = 0 AND status = ? ORDER BY id"
 ```
 
 The rating is a personal example value. Use your own existing files and values;
-`xmeta` does not create media files. See the [animated CLI demo](https://fsmeta.eidos.space/#demo).
+`xmeta` does not create media files. See the [animated CLI demo](https://xmeta.eidos.space/#demo).
 
 Schema declarations live in `<metadata-namespace>.schema` on the root folder
 (`space.eidos.meta.schema` by default). Updating declarations never rewrites
@@ -128,7 +128,7 @@ Explicit `fields` overrides the stored schema. On Windows, load
 
 The installers verify the native binary's checksum and version and install to
 `~/.local/bin`. Re-run to update. Manual binaries and `SHA256SUMS` are on
-[GitHub Releases](https://github.com/mayneyao/sqlite-fs-meta/releases/latest).
+[GitHub Releases](https://github.com/mayneyao/xmeta/releases/latest).
 For source builds, use `cargo install --path . --locked`.
 
 ```bash
@@ -211,8 +211,8 @@ use the CLI property commands for edits.
   functions, transactions, and platform details.
 - [CLI reference](docs/cli.md): commands, namespace configuration, options, and
   exit codes.
-- [Agent guide](https://fsmeta.eidos.space/docs/agent-guide.md) and
-  [llms.txt](https://fsmeta.eidos.space/llms.txt): workflows and documentation discovery.
+- [Agent guide](https://xmeta.eidos.space/docs/agent-guide.md) and
+  [llms.txt](https://xmeta.eidos.space/llms.txt): workflows and documentation discovery.
 - [Release notes](RELEASE_NOTES.md): shipped changes and compatibility details.
 - [Landing page source](site/): Astro site with local development and deployment
   notes.

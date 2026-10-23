@@ -1,8 +1,8 @@
 [package]
-name = "sqlite-fs-meta"
+name = "xmeta"
 version = "0.6.0"
 edition = "2021"
-description = "Treat your filesystem as a database: query and update files with SQLite"
+description = "Custom file properties. Manage files like a database."
 
 [lib]
 name = "fs_meta"

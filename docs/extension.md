@@ -1,6 +1,6 @@
 # Extension Reference
 
-`sqlite-fs-meta` is a loadable SQLite virtual-table extension. It exposes a
+The `fs_meta` module is xmeta's loadable SQLite virtual-table extension. It exposes a
 directory tree as a table and stores custom properties in native OS metadata.
 
 ## Loading
@@ -184,7 +184,7 @@ these functions and directory support are available.
                        │
                        ▼
        ┌───────────────────────────────┐
-       │   sqlite-fs-meta (vtab)       │
+       │   xmeta / fs_meta (vtab)      │
        │   - xBestIndex (O(1) lookup)  │
        │   - Dynamic DDL declaration   │
        └───────────────┬───────────────┘

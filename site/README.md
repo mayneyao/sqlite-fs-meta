@@ -1,7 +1,7 @@
 # Landing site
 
-Bilingual Astro site for `sqlite-fs-meta`, hosted at
-`https://fsmeta.eidos.space`.
+Bilingual Astro site for `xmeta`, hosted at
+`https://xmeta.eidos.space`.
 
 The design follows eidos.space: warm paper and ink, IBM Plex Serif headings,
 IBM Plex Sans body text, IBM Plex Mono commands, and restrained violet accents.
@@ -47,8 +47,8 @@ pnpm dlx wrangler@4.70.0 login
 pnpm run deploy
 ```
 
-Wrangler deploys only `dist/` as static assets to the `fsmeta` Worker and binds
-`fsmeta.eidos.space` as its custom domain. Cloudflare manages DNS and TLS for
+Wrangler deploys only `dist/` as static assets to the `xmeta` Worker and binds
+`xmeta.eidos.space` as its custom domain. Cloudflare manages DNS and TLS for
 that binding. No application server or database is required.
 
 Build and verify before deploying. Publish the matching CLI release assets
@@ -56,7 +56,7 @@ before changing the public installer channel so installation never points to
 an unavailable version. CI builds the site and tests the installers; production
 deployment uses the authorized local Wrangler session.
 
-`SITE_URL` defaults to `https://fsmeta.eidos.space` and `SITE_BASE` to `/`.
+`SITE_URL` defaults to `https://xmeta.eidos.space` and `SITE_BASE` to `/`.
 Installer scripts and the version channel require cache revalidation;
 fingerprinted Astro assets use immutable browser caching.
 
@@ -106,13 +106,13 @@ synchronization of their schema or view configuration.
 macOS and Linux users can install with:
 
 ```bash
-curl -fsSL https://fsmeta.eidos.space/install.sh | sh
+curl -fsSL https://xmeta.eidos.space/install.sh | sh
 ```
 
 Windows users can run this in PowerShell:
 
 ```powershell
-irm https://fsmeta.eidos.space/install.ps1 | iex
+irm https://xmeta.eidos.space/install.ps1 | iex
 ```
 
 Both scripts resolve `public/cli/latest.txt`, download the native binary and
@@ -128,7 +128,7 @@ that behavior.
 For a pinned version or custom directory:
 
 ```bash
-curl -fsSL https://fsmeta.eidos.space/install.sh | sh -s -- \
+curl -fsSL https://xmeta.eidos.space/install.sh | sh -s -- \
   --version 0.6.0 --install-dir "$HOME/.local/bin"
 ```
 

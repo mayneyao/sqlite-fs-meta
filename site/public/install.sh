@@ -33,8 +33,8 @@ cleanup() {
 main() {
   version=${XMETA_VERSION:-}
   install_dir=${XMETA_INSTALL_DIR:-"$HOME/.local/bin"}
-  latest_url=${XMETA_LATEST_URL:-https://fsmeta.eidos.space/cli/latest.txt}
-  download_base=${XMETA_DOWNLOAD_BASE:-https://github.com/mayneyao/sqlite-fs-meta/releases/download}
+  latest_url=${XMETA_LATEST_URL:-https://xmeta.eidos.space/cli/latest.txt}
+  download_base=${XMETA_DOWNLOAD_BASE:-https://github.com/mayneyao/xmeta/releases/download}
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
