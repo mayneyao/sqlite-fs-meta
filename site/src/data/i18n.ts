@@ -40,7 +40,7 @@ const en = {
     label: "The model",
     title: ["The metadata", "stays with the file."],
     description:
-      "Properties live in native extended attributes or NTFS alternate data streams. Your folder stays the source of truth.",
+      "Custom properties are stored in the corresponding file or folder's native extended attributes or NTFS alternate data streams. No separate metadata database is required.",
     details: [
       {
         title: "The folder remembers its fields.",
@@ -110,7 +110,7 @@ const zh: typeof en = {
   model: {
     label: "存储方式",
     title: ["元数据，", "与文件放在一起。"],
-    description: "属性保存在原生扩展属性或 NTFS 备用数据流中。文件夹本身就是数据来源。",
+    description: "自定义属性保存在对应文件或文件夹的扩展属性或 NTFS 备用数据流中，无需另建数据库保存。",
     details: [
       {
         title: "文件夹，记住自己的字段。",
